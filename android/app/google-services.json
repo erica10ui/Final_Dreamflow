@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "109265291036",
+    "project_id": "finaled-17624",
+    "storage_bucket": "finaled-17624.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:109265291036:android:8e116c4ff71691bb3f5cd9",
+        "android_client_info": {
+          "package_name": "com.dreamflow.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "109265291036-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD2peZcEFItzlf7xVghBaQEzOwbpox54xA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "109265291036-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
