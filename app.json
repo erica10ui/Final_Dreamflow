@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "Dreamflow",
+    "slug": "Dreamflow",
+    "version": "1.0.0",
+    "scheme": "dreamflow",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#E8D5F2",
+      "hideExponentText": true
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.dreamflow.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/logo.png",
+        "backgroundColor": "#E8D5F2"
+      },
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#9B70D8",
+          "defaultChannel": "default"
+        }
+      ]
+    ]
+  }
+}
