@@ -17,13 +17,14 @@ import { Audio } from 'expo-av';
 import { useSleep } from '../../contexts/SleepContext';
 import { useSound } from '../../contexts/SoundContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { useSimpleNotification } from '../../contexts/SimpleNotificationContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useSimpleNotification } from '../../contexts/SimpleNotificationContext';
 import { db } from '../../lib/firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 export default function Home() {
   const { user } = useAuth();
+  const { colors, isDarkMode } = useTheme();
   const { 
     isSleeping, 
     currentSession, 
@@ -32,20 +33,29 @@ export default function Home() {
     wakeUpTime: defaultWakeTime, 
     startSleep, 
     endSleep, 
-    sleepSessions,
     getSleepStats, 
     getCurrentSleepDuration,
     updateSleepGoal,
     updateBedtime,
     updateWakeTime,
     scheduleSleepReminder,
-    scheduleWakeUpAlarm
+    scheduleWakeUpAlarm,
+    sleepSessions
   } = useSleep();
   
-  const { requestPermissions, scheduleBedtimeReminder: scheduleReminder, scheduleWakeUpAlarm: scheduleAlarm } = useSimpleNotification();
-  const { colors, isDarkMode } = useTheme();
-  
   const { playSound } = useSound();
+  
+  // Safely get notification functions with error handling
+  let requestPermissions, scheduleNotification;
+  try {
+    const notificationContext = useSimpleNotification();
+    requestPermissions = notificationContext.requestPermissions;
+    scheduleNotification = notificationContext.scheduleNotification;
+  } catch (error) {
+    console.log('Notification context not available:', error);
+    requestPermissions = async () => false;
+    scheduleNotification = null;
+  }
   const [showSettings, setShowSettings] = useState(false);
   const [tempSleepGoal, setTempSleepGoal] = useState(sleepGoal);
   const [tempBedtime, setTempBedtime] = useState(bedtime);
@@ -56,65 +66,6 @@ export default function Home() {
   const [showWakeTimePicker, setShowWakeTimePicker] = useState(false);
   const [bedtimeTime, setBedtimeTime] = useState(new Date());
   const [wakeUpTime, setWakeUpTime] = useState(new Date());
-  const [wakeUpSound, setWakeUpSound] = useState('birds');
-  const [alarmSounds] = useState([
-    {
-      id: 'birds',
-      name: 'Birds Chirping',
-      icon: '🐦',
-      description: 'Gentle bird sounds for peaceful wake-up',
-      audioFile: require('../../assets/sounds/birds39-forest-20772.mp3')
-    },
-    {
-      id: 'chimes',
-      name: 'Soft Chimes',
-      icon: '🔔',
-      description: 'Delicate chime sounds for gentle awakening',
-      audioFile: require('../../assets/sounds/peaceful-sleep-188311.mp3')
-    },
-    {
-      id: 'classic',
-      name: 'Classic Alarm',
-      icon: '⏰',
-      description: 'Traditional alarm clock sound',
-      audioFile: require('../../assets/sounds/peaceful-sleep-188311.mp3')
-    },
-    {
-      id: 'sleepy-rain',
-      name: 'Sleepy Rain',
-      icon: '🌧️',
-      description: 'Gentle rain sounds for calm wake-up',
-      audioFile: require('../../assets/sounds/sleepy-rain-116521.mp3')
-    },
-    {
-      id: 'soft-piano',
-      name: 'Soft Piano',
-      icon: '🎹',
-      description: 'Inspirational piano melodies',
-      audioFile: require('../../assets/sounds/soft-piano-inspiration-405221.mp3')
-    },
-    {
-      id: 'silent-waves',
-      name: 'Silent Waves',
-      icon: '🌊',
-      description: 'Calming ocean waves for peaceful awakening',
-      audioFile: require('../../assets/sounds/silent-waves-instrumental-333295.mp3')
-    },
-    {
-      id: 'peaceful-sleep',
-      name: 'Peaceful Sleep',
-      icon: '😴',
-      description: 'Gentle ambient sounds for soft wake-up',
-      audioFile: require('../../assets/sounds/peaceful-sleep-188311.mp3')
-    },
-    {
-      id: 'calm-ocean',
-      name: 'Calm Ocean Breeze',
-      icon: '🌊',
-      description: 'Ocean breeze sounds for refreshing wake-up',
-      audioFile: require('../../assets/sounds/calm-ocean-breeze-325556.mp3')
-    }
-  ]);
   const [sound, setSound] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [sleepDuration, setSleepDuration] = useState(0);
@@ -122,6 +73,20 @@ export default function Home() {
   const [alarmActive, setAlarmActive] = useState(false);
   const [alarmTime, setAlarmTime] = useState(null);
   const [alarmEnabled, setAlarmEnabled] = useState(false);
+  const [wakeUpSound, setWakeUpSound] = useState('birds');
+  const [realTimeDuration, setRealTimeDuration] = useState(0);
+  const [sleepStartTime, setSleepStartTime] = useState(null);
+  const [localIsSleeping, setLocalIsSleeping] = useState(false);
+
+  // Alarm sounds options
+  const alarmSounds = [
+    { id: 'birds', name: 'Birds', icon: '🐦' },
+    { id: 'ocean', name: 'Ocean', icon: '🌊' },
+    { id: 'rain', name: 'Rain', icon: '🌧️' },
+    { id: 'piano', name: 'Piano', icon: '🎹' },
+    { id: 'chimes', name: 'Chimes', icon: '🔔' },
+    { id: 'forest', name: 'Forest', icon: '🌲' }
+  ];
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showMusicSelector, setShowMusicSelector] = useState(false);
 
@@ -263,6 +228,14 @@ export default function Home() {
       const now = new Date();
       setCurrentTime(now);
       
+      // Update real-time sleep duration only when sleeping
+      if (localIsSleeping && sleepStartTime) {
+        const now = new Date();
+        const elapsed = (now.getTime() - sleepStartTime.getTime()) / 1000; // seconds
+        const hours = elapsed / 3600; // convert to hours
+        setRealTimeDuration(hours);
+      }
+      
       // Check if it's time for the alarm
       if (alarmTime && !alarmActive) {
         const alarmDate = new Date(alarmTime);
@@ -275,7 +248,7 @@ export default function Home() {
       }
 
       // Check if sleep goal hours have been reached
-      if (isSleeping && currentDuration >= sleepGoal) {
+      if (localIsSleeping && realTimeDuration >= sleepGoal) {
         // Trigger alarm when sleep goal is reached
         if (!alarmActive) {
           triggerAlarm();
@@ -284,7 +257,7 @@ export default function Home() {
     }, 1000); // Update every second
 
     return () => clearInterval(timer);
-  }, [alarmTime, alarmActive, triggerAlarm, isSleeping, currentDuration, sleepGoal]);
+  }, [alarmTime, alarmActive, triggerAlarm, localIsSleeping, realTimeDuration, sleepGoal, sleepStartTime]);
 
   // Audio functions for wake-up sounds
   useEffect(() => {
@@ -472,9 +445,14 @@ export default function Home() {
         console.log('Notifications enabled successfully!');
       } else {
         console.log('Notification permissions not granted');
+        // Still enable locally for basic functionality
+        setNotificationsEnabled(true);
       }
     } catch (error) {
       console.error('Error setting up notifications:', error);
+      // Fallback: just enable notifications locally
+      setNotificationsEnabled(true);
+      console.log('Notifications enabled locally (limited functionality)');
     }
   };
 
@@ -490,19 +468,33 @@ export default function Home() {
       updateBedtime(bedtime);
       updateWakeTime(wakeTime);
       
-      const bedtimeResult = await scheduleReminder(bedtime);
-      const wakeResult = await scheduleAlarm(wakeTime);
-      
-      if (bedtimeResult && wakeResult) {
-        Alert.alert('Success', 'Sleep reminders scheduled successfully!');
-        console.log('Bedtime reminder scheduled for:', bedtime);
-        console.log('Wake up alarm scheduled for:', wakeTime);
+      // Schedule notifications using the SimpleNotificationContext
+      if (scheduleNotification) {
+        try {
+          await scheduleNotification({
+            title: '🌙 Bedtime Reminder',
+            body: 'It\'s time to wind down and prepare for sleep.',
+            time: bedtime
+          });
+          
+          await scheduleNotification({
+            title: '☀️ Wake Up Time',
+            body: 'Good morning! Time to start your day.',
+            time: wakeTime
+          });
+          
+          console.log('Bedtime reminder scheduled for:', bedtime);
+          console.log('Wake up alarm scheduled for:', wakeTime);
+        } catch (notificationError) {
+          console.log('Notification scheduling failed, but preferences saved locally:', notificationError);
+        }
       } else {
-        Alert.alert('Info', 'Notification preferences saved locally. Full notifications require proper permissions.');
+        console.log('Notification preferences saved locally. Full notifications require proper permissions.');
       }
     } catch (error) {
-      console.error('Error scheduling notifications:', error);
-      Alert.alert('Error', 'Failed to schedule notifications. Please try again.');
+      console.error('Error in scheduleBedtimeReminder:', error);
+      // Don't show error alert, just log it
+      console.log('Notification preferences saved locally despite error.');
     }
   };
 
@@ -573,6 +565,9 @@ export default function Home() {
 
   const handleStartSleep = () => {
     playSound('button');
+    setRealTimeDuration(0); // Reset timer when starting sleep
+    setSleepStartTime(new Date()); // Set the start time for real-time calculation
+    setLocalIsSleeping(true); // Set local sleeping state
     startSleep();
     Alert.alert('Sleep Started', 'Sleep tracking has begun. Sweet dreams! 🌙');
   };
@@ -583,11 +578,36 @@ export default function Home() {
       'End Sleep Session',
       'How was your sleep quality?',
       [
-        { text: 'Poor', onPress: () => endSleep('Poor') },
-        { text: 'Fair', onPress: () => endSleep('Fair') },
-        { text: 'Good', onPress: () => endSleep('Good') },
-        { text: 'Great', onPress: () => endSleep('Great') },
-        { text: 'Excellent', onPress: () => endSleep('Excellent') }
+        { text: 'Poor', onPress: () => {
+          endSleep('Poor');
+          setRealTimeDuration(0);
+          setSleepStartTime(null);
+          setLocalIsSleeping(false);
+        }},
+        { text: 'Fair', onPress: () => {
+          endSleep('Fair');
+          setRealTimeDuration(0);
+          setSleepStartTime(null);
+          setLocalIsSleeping(false);
+        }},
+        { text: 'Good', onPress: () => {
+          endSleep('Good');
+          setRealTimeDuration(0);
+          setSleepStartTime(null);
+          setLocalIsSleeping(false);
+        }},
+        { text: 'Great', onPress: () => {
+          endSleep('Great');
+          setRealTimeDuration(0);
+          setSleepStartTime(null);
+          setLocalIsSleeping(false);
+        }},
+        { text: 'Excellent', onPress: () => {
+          endSleep('Excellent');
+          setRealTimeDuration(0);
+          setSleepStartTime(null);
+          setLocalIsSleeping(false);
+        }}
       ]
     );
   };
@@ -623,7 +643,7 @@ export default function Home() {
     return `${displayHour}:${minutes} ${ampm}`;
   };
 
-  // Stars Background Component (shinning stars with crescent emoji)
+  // Stars Background Component (shining stars with crescent emoji)
   const renderStars = () => {
     if (!isDarkMode) return null;
     
@@ -634,7 +654,7 @@ export default function Home() {
           <Text style={styles.crescentEmoji}>🌙</Text>
         </View>
         
-        {/* Shinning Stars */}
+        {/* Animated Stars */}
         {[...Array(20)].map((_, index) => (
           <View
             key={index}
@@ -643,8 +663,8 @@ export default function Home() {
               {
                 left: Math.random() * 100 + '%',
                 top: Math.random() * 100 + '%',
-                opacity: Math.random() * 0.8 + 0.2,
-              }
+                animationDelay: Math.random() * 3 + 's',
+              },
             ]}
           />
         ))}
@@ -655,58 +675,55 @@ export default function Home() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
       {renderStars()}
-      {/* Greeting and Settings Header */}
-      <View style={[styles.greetingHeader, { marginTop: 80 }]}>
-        {/* Left Side - Greetings */}
-        <View style={styles.greetingLeft}>
-          <Text style={[styles.greeting, { color: colors.text }]}>
-            {getGreeting()}, {user?.firstName || 'Dream Explorer'}!
-          </Text>
-          <Text style={[styles.currentTime, { color: colors.textSecondary }]}>
-            {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </Text>
-          <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>
-            Ready to track your sleep journey?
-          </Text>
+      {/* Simple Header with User Name and Real-time Clock - Inline */}
+      <View style={[styles.inlineHeader, { backgroundColor: colors.surface }]}>
+        <View style={styles.headerTop}>
+          <View style={styles.headerTextContainer}>
+            <Text style={[styles.greeting, { color: colors.text }]}>{getGreeting()}, {user?.firstName || user?.username || (user?.email ? user.email.split('@')[0] : 'Friend')}!</Text>
+            <Text style={[styles.currentTime, { color: colors.textSecondary }]}>{currentTime.toLocaleTimeString('en-US', { 
+              hour: '2-digit', 
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: true 
+            })}</Text>
+          </View>
+          <TouchableOpacity 
+            style={[styles.settingsButton, { backgroundColor: colors.primaryLight }]}
+            onPress={() => {
+              playSound('button');
+              setShowSettings(true);
+            }}
+          >
+            <MaterialCommunityIcons name="cog" size={24} color={colors.primary} />
+          </TouchableOpacity>
         </View>
-        
-        {/* Right Side - Settings Button */}
-        <TouchableOpacity 
-          style={[styles.headerSettingsButton, { backgroundColor: colors.primary }]}
-          onPress={() => {
-            playSound('button');
-            setShowSettings(true);
-          }}
-        >
-          <MaterialCommunityIcons name="cog" size={24} color="#FFFFFF" />
-        </TouchableOpacity>
       </View>
 
       {/* Enhanced Sleep Tracking Card */}
-      <View style={[styles.sleepTrackingCard, { backgroundColor: colors.card, shadowColor: colors.shadow, marginTop: 20 }]}>
+      <View style={[styles.sleepTrackingCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
         <View style={styles.sleepHeader}>
           <View style={styles.sleepTitleContainer}>
             <MaterialCommunityIcons name="moon-waning-crescent" size={24} color={colors.primary} />
             <Text style={[styles.sleepTitle, { color: colors.text }]}>Sleep Tracking</Text>
           </View>
           <View style={styles.sleepStatus}>
-            <View style={[styles.statusDot, { backgroundColor: isSleeping ? colors.success : colors.textMuted }]} />
+            <View style={[styles.statusDot, { backgroundColor: localIsSleeping ? colors.success : colors.textMuted }]} />
             <Text style={[styles.statusText, { color: colors.textSecondary }]}>
-              {isSleeping ? 'Sleeping' : 'Awake'}
+              {localIsSleeping ? 'Sleeping' : 'Awake'}
             </Text>
           </View>
         </View>
 
-        {isSleeping ? (
+        {localIsSleeping ? (
           <View style={styles.sleepingContent}>
             <View style={styles.sleepDurationContainer}>
-              <Text style={styles.sleepDuration}>
-                {Math.floor(currentDuration)}h {Math.round((currentDuration % 1) * 60)}m
+              <Text style={[styles.sleepDuration, { color: colors.primary }]}>
+                {Math.floor(realTimeDuration)}h {Math.floor((realTimeDuration % 1) * 60)}m {Math.floor(((realTimeDuration % 1) * 60 % 1) * 60)}s
               </Text>
-              <Text style={styles.sleepDurationLabel}>Sleep Duration</Text>
-              {currentDuration >= sleepGoal && (
+              <Text style={[styles.sleepDurationLabel, { color: colors.textSecondary }]}>Sleep Duration</Text>
+              {realTimeDuration >= sleepGoal && (
                 <View style={styles.goalReachedContainer}>
-                  <MaterialCommunityIcons name="check-circle" size={20} color="#10B981" />
+                  <MaterialCommunityIcons name="check-circle" size={20} color={colors.success} />
                   <Text style={styles.goalReachedText}>Goal Reached! Alarm will trigger soon.</Text>
                 </View>
               )}
@@ -722,7 +739,7 @@ export default function Home() {
                 </View>
               )}
             </View>
-            <TouchableOpacity style={styles.endSleepButton} onPress={handleEndSleep}>
+            <TouchableOpacity style={[styles.endSleepButton, { backgroundColor: colors.error }]} onPress={handleEndSleep}>
               <MaterialCommunityIcons name="stop" size={24} color="#FFFFFF" />
               <Text style={styles.endSleepText}>End Sleep</Text>
             </TouchableOpacity>
@@ -730,10 +747,10 @@ export default function Home() {
         ) : (
           <View style={styles.awakeContent}>
             <View style={styles.sleepGoalDisplay}>
-              <Text style={styles.goalNumber}>{sleepGoal}h</Text>
-              <Text style={styles.goalLabel}>Sleep Goal</Text>
+              <Text style={[styles.goalNumber, { color: colors.primary }]}>{sleepGoal}h</Text>
+              <Text style={[styles.goalLabel, { color: colors.textSecondary }]}>Sleep Goal</Text>
             </View>
-            <TouchableOpacity style={styles.startSleepButton} onPress={handleStartSleep}>
+            <TouchableOpacity style={[styles.startSleepButton, { backgroundColor: colors.primary }]} onPress={handleStartSleep}>
               <MaterialCommunityIcons name="sleep" size={32} color="#FFFFFF" />
               <Text style={styles.startSleepText}>Start Sleep</Text>
             </TouchableOpacity>
@@ -746,20 +763,20 @@ export default function Home() {
       <View style={[styles.statsContainer, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Sleep Statistics</Text>
         <View style={styles.statsGrid}>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]}>
-            <Text style={[styles.statNumber, { color: colors.text }]}>{stats.averageSleep}h</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>{stats.averageSleep}h</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Average Sleep</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]}>
-            <Text style={[styles.statNumber, { color: colors.text }]}>{stats.sleepStreak}</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>{stats.sleepStreak}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Day Streak</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]}>
-            <Text style={[styles.statNumber, { color: colors.text }]}>{stats.goalAchievement}</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>{stats.goalAchievement}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Goal Days</Text>
           </View>
-          <View style={[styles.statCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]}>
-            <Text style={[styles.statNumber, { color: colors.text }]}>{stats.totalSessions}</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statNumber, { color: colors.primary }]}>{stats.totalSessions}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Sessions</Text>
           </View>
         </View>
@@ -858,7 +875,7 @@ export default function Home() {
                       style={[
                         styles.goalOption,
                         { backgroundColor: colors.card, borderColor: colors.border },
-                        tempSleepGoal === goal && [styles.goalOptionActive, { backgroundColor: colors.primary }]
+                        tempSleepGoal === goal && { backgroundColor: colors.primary }
                       ]}
                       onPress={() => {
                         playSound('button');
@@ -868,7 +885,7 @@ export default function Home() {
                       <Text style={[
                         styles.goalOptionText,
                         { color: colors.text },
-                        tempSleepGoal === goal && [styles.goalOptionTextActive, { color: '#FFFFFF' }]
+                        tempSleepGoal === goal && { color: '#FFFFFF' }
                       ]}>
                         {goal}h
                       </Text>
@@ -901,6 +918,59 @@ export default function Home() {
                 />
               </View>
 
+              {/* Music Alarm Selection - Only show when alarm is enabled */}
+              {alarmEnabled ? (
+                <View style={styles.settingItem}>
+                  <Text style={[styles.settingLabel, { color: colors.text }]}>🔊 Alarm Music</Text>
+                  <Text style={[styles.settingDescription, { color: colors.textSecondary, marginBottom: 12 }]}>
+                    Choose your preferred wake-up sound
+                  </Text>
+                  <View style={styles.musicAlarmGrid}>
+                    {alarmSounds.map((sound) => (
+                      <TouchableOpacity
+                        key={sound.id}
+                        style={[
+                          styles.musicAlarmOption,
+                          { 
+                            backgroundColor: wakeUpSound === sound.id ? colors.primary : colors.card,
+                            borderColor: colors.border
+                          }
+                        ]}
+                        onPress={() => {
+                          setWakeUpSound(sound.id);
+                          playSound('button');
+                        }}
+                      >
+                        <Text style={styles.musicAlarmIcon}>{sound.icon}</Text>
+                        <Text style={[
+                          styles.musicAlarmName,
+                          { color: wakeUpSound === sound.id ? '#FFFFFF' : colors.text }
+                        ]}>
+                          {sound.name}
+                        </Text>
+                        {wakeUpSound === sound.id && (
+                          <MaterialCommunityIcons 
+                            name="check-circle" 
+                            size={20} 
+                            color="#FFFFFF" 
+                            style={styles.musicAlarmCheck}
+                          />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.settingItem}>
+                  <View style={[styles.disabledSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <MaterialCommunityIcons name="music-note-off" size={24} color={colors.textMuted} />
+                    <Text style={[styles.disabledText, { color: colors.textMuted }]}>
+                      Enable alarm to select wake-up music
+                    </Text>
+                  </View>
+                </View>
+              )}
+
               {/* Alarm Wake Up */}
               <View style={styles.settingItem}>
                 <View style={styles.alarmSettingHeader}>
@@ -912,8 +982,8 @@ export default function Home() {
                   <TouchableOpacity
                     style={[
                       styles.alarmToggle,
-                      { backgroundColor: colors.card, borderColor: colors.border },
-                      alarmEnabled && [styles.alarmToggleActive, { backgroundColor: colors.primary }]
+                      { backgroundColor: colors.border },
+                      alarmEnabled && { backgroundColor: colors.primary }
                     ]}
                     onPress={() => {
                       playSound('button');
@@ -923,10 +993,10 @@ export default function Home() {
                     <View style={[
                       styles.alarmToggleButton,
                       { backgroundColor: colors.surface },
-                      alarmEnabled && [styles.alarmToggleButtonActive, { backgroundColor: '#FFFFFF' }]
+                      alarmEnabled && { backgroundColor: '#FFFFFF' }
                     ]} />
                   </TouchableOpacity>
-                  <Text style={[styles.alarmToggleLabel, { color: colors.text }]}>
+                  <Text style={[styles.alarmToggleLabel, { color: colors.textSecondary }]}>
                     {alarmEnabled ? 'Enabled' : 'Disabled'}
                   </Text>
                 </View>
@@ -948,7 +1018,7 @@ export default function Home() {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity 
-                style={[styles.cancelButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                style={[styles.cancelButton, { borderColor: colors.border }]}
                 onPress={() => {
                   playSound('button');
                   setShowSettings(false);
@@ -960,7 +1030,7 @@ export default function Home() {
                 style={[styles.saveButton, { backgroundColor: colors.primary }]}
                 onPress={handleSaveSettings}
               >
-                <Text style={[styles.saveButtonText, { color: '#FFFFFF' }]}>Save Settings</Text>
+                <Text style={styles.saveButtonText}>Save Settings</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -973,6 +1043,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#E8D5F2',
   },
   inlineHeader: {
     padding: 20,
@@ -983,12 +1054,14 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
+    alignItems: 'center',
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    marginBottom: 20,
   },
   headerTextContainer: {
     flex: 1,
-    paddingHorizontal: 4,
   },
   headerSubtitle: {
     fontSize: 14,
@@ -1022,28 +1095,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
-  greetingHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-  },
-  greetingLeft: {
-    flex: 1,
-  },
-  headerSettingsButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
   greeting: {
     fontSize: 28,
     fontWeight: 'bold',
@@ -1059,22 +1110,33 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: '#F0E6FA',
   },
+  resetButton: {
+    padding: 8,
+    borderRadius: 20,
+    marginRight: 8,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 16,
+  },
   subGreeting: {
     fontSize: 16,
     color: '#6B7280',
   },
   sleepTrackingCard: {
     margin: 20,
-    marginTop: 0,
+    marginTop: 10,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 24,
-    shadowColor: '#9B70D8',
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#F3E8FF',
+    shadowRadius: 8,
+    elevation: 5,
   },
   sleepHeader: {
     flexDirection: 'row',
@@ -1082,10 +1144,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
   },
+  sleepHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   sleepTitle: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#6A3E9E',
+    color: '#1F2937',
   },
   sleepTitleContainer: {
     flexDirection: 'row',
@@ -1123,12 +1190,12 @@ const styles = StyleSheet.create({
   sleepDuration: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#9B70D8',
+    color: '#8B5CF6',
     marginBottom: 8,
   },
   sleepDurationLabel: {
     fontSize: 16,
-    color: '#9B70D8',
+    color: '#6B7280',
     marginBottom: 24,
   },
   goalReachedContainer: {
@@ -1187,16 +1254,16 @@ const styles = StyleSheet.create({
   goalNumber: {
     fontSize: 36,
     fontWeight: 'bold',
-    color: '#9B70D8',
+    color: '#8B5CF6',
   },
   goalLabel: {
     fontSize: 16,
-    color: '#9B70D8',
+    color: '#6B7280',
   },
   startSleepButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#9B70D8',
+    backgroundColor: '#8B5CF6',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 30,
@@ -1222,7 +1289,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#6A3E9E',
+    color: '#1F2937',
     marginBottom: 16,
   },
   scheduleRow: {
@@ -1250,6 +1317,7 @@ const styles = StyleSheet.create({
   statsContainer: {
     margin: 20,
     marginTop: 0,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -1257,8 +1325,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F3E8FF',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -1269,24 +1335,25 @@ const styles = StyleSheet.create({
     width: '48%',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
     marginBottom: 12,
   },
   statNumber: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#9B70D8',
+    color: '#8B5CF6',
     marginBottom: 4,
   },
   statLabel: {
     fontSize: 12,
-    color: '#9B70D8',
+    color: '#6B7280',
     textAlign: 'center',
   },
   recentSessionsContainer: {
     margin: 20,
     marginTop: 0,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -1294,21 +1361,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F3E8FF',
   },
   sessionsList: {
     alignItems: 'center',
   },
   sessionsText: {
     fontSize: 16,
-    color: '#9B70D8',
+    color: '#6B7280',
     textAlign: 'center',
     lineHeight: 24,
   },
   tipsContainer: {
     margin: 20,
     marginTop: 0,
+    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     padding: 20,
     shadowColor: '#000',
@@ -1316,8 +1382,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
-    borderWidth: 1,
-    borderColor: '#F3E8FF',
   },
   tipsList: {
     gap: 12,
@@ -1326,10 +1390,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 12,
+    backgroundColor: '#F8FAFC',
     borderRadius: 12,
   },
   tipText: {
     fontSize: 14,
+    color: '#1F2937',
     marginLeft: 12,
     flex: 1,
   },
@@ -1569,66 +1635,88 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 4,
   },
-  headerButtons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  // Stars and Crescent Styles
+  // Stars Animation Styles
   nightSkyContainer: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    zIndex: -1,
+    zIndex: 0,
   },
   crescentContainer: {
     position: 'absolute',
-    top: 80,
-    right: 30,
-    width: 60,
-    height: 60,
+    top: 60,
+    right: 20,
+    zIndex: 1,
+  },
+  crescentEmoji: {
+    fontSize: 40,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  star: {
+    position: 'absolute',
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  // Music Alarm Styles
+  musicAlarmGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 12,
+  },
+  musicAlarmOption: {
+    flex: 1,
+    minWidth: '45%',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    position: 'relative',
+  },
+  musicAlarmIcon: {
+    fontSize: 24,
+    marginBottom: 8,
+  },
+  musicAlarmName: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  musicAlarmCheck: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+  },
+  // Disabled Section Styles
+  disabledSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    gap: 12,
   },
-  crescentEmoji: {
-    fontSize: 40,
-    textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
+  disabledText: {
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
-  star: {
-    position: 'absolute',
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-});
-    alignItems: 'center',
-  },
-  crescentEmoji: {
-    fontSize: 40,
-    textShadowColor: 'rgba(255, 255, 255, 0.8)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 10,
-  },
-  star: {
-    position: 'absolute',
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#FFFFFF',
-    shadowColor: '#FFFFFF',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-});
+ });

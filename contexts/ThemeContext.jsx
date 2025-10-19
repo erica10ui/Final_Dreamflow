@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const ThemeContext = createContext();
+const ThemeContext = createContext(null);
+
+export { ThemeContext };
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
@@ -13,6 +15,7 @@ export const useTheme = () => {
 
 export const ThemeProvider = ({ children }) => {
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Load theme preference from storage
   useEffect(() => {
@@ -21,22 +24,39 @@ export const ThemeProvider = ({ children }) => {
 
   const loadThemePreference = async () => {
     try {
+      console.log('ThemeContext: Loading theme preference...');
       const savedTheme = await AsyncStorage.getItem('themePreference');
+      console.log('ThemeContext: Saved theme from storage:', savedTheme);
+      
       if (savedTheme !== null) {
-        setIsDarkMode(savedTheme === 'dark');
+        const shouldBeDark = savedTheme === 'dark';
+        console.log('ThemeContext: Setting dark mode to:', shouldBeDark);
+        setIsDarkMode(shouldBeDark);
+      } else {
+        console.log('ThemeContext: No saved theme found, using default (light mode)');
+        setIsDarkMode(false);
       }
     } catch (error) {
-      console.error('Error loading theme preference:', error);
+      console.error('ThemeContext: Error loading theme preference:', error);
+      setIsDarkMode(false); // Fallback to light mode
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const toggleTheme = async () => {
     try {
       const newTheme = !isDarkMode;
+      const themeString = newTheme ? 'dark' : 'light';
+      
+      console.log('ThemeContext: Toggling theme from', isDarkMode ? 'dark' : 'light', 'to', themeString);
+      
       setIsDarkMode(newTheme);
-      await AsyncStorage.setItem('themePreference', newTheme ? 'dark' : 'light');
+      await AsyncStorage.setItem('themePreference', themeString);
+      
+      console.log('ThemeContext: Theme preference saved successfully:', themeString);
     } catch (error) {
-      console.error('Error saving theme preference:', error);
+      console.error('ThemeContext: Error saving theme preference:', error);
     }
   };
 
@@ -111,10 +131,21 @@ export const ThemeProvider = ({ children }) => {
 
   const currentColors = colors[isDarkMode ? 'dark' : 'light'];
 
+  // Debug function to check theme state
+  const debugTheme = () => {
+    console.log('=== THEME DEBUG INFO ===');
+    console.log('isDarkMode:', isDarkMode);
+    console.log('isLoading:', isLoading);
+    console.log('currentColors:', currentColors);
+    console.log('========================');
+  };
+
   const value = {
     isDarkMode,
+    isLoading,
     toggleTheme,
     colors: currentColors,
+    debugTheme, // Add debug function for development
   };
 
   return (

@@ -25,11 +25,11 @@ export default function NotificationScreen() {
   const { user } = useAuth();
   const { playSound } = useSound();
   const { getStats, dreamEntries } = useJournal();
+  const { isSleeping } = useSleep();
   const { scheduleBedtimeReminder, scheduleWakeUpAlarm } = useSimpleNotification();
   const { isDarkMode, toggleTheme, colors } = useTheme();
-  const { sleepSessions, sleepGoal, bedtime, wakeUpTime, getSleepStats } = useSleep();
-  
-  // Stars Background Component (shinning stars with crescent emoji)
+
+  // Stars Background Component (shining stars with crescent emoji)
   const renderStars = () => {
     if (!isDarkMode) return null;
     
@@ -40,7 +40,7 @@ export default function NotificationScreen() {
           <Text style={styles.crescentEmoji}>🌙</Text>
         </View>
         
-        {/* Shinning Stars */}
+        {/* Animated Stars */}
         {[...Array(20)].map((_, index) => (
           <View
             key={index}
@@ -49,14 +49,15 @@ export default function NotificationScreen() {
               {
                 left: Math.random() * 100 + '%',
                 top: Math.random() * 100 + '%',
-                opacity: Math.random() * 0.8 + 0.2,
-              }
+                animationDelay: Math.random() * 3 + 's',
+              },
             ]}
           />
         ))}
       </View>
     );
   };
+  const { sleepSessions, sleepGoal, bedtime, wakeUpTime, getSleepStats } = useSleep();
   
   // State for notifications and sleep tracking
   const [notifications, setNotifications] = useState([]);
@@ -480,7 +481,7 @@ export default function NotificationScreen() {
       </View>
 
       {/* Sleep Time Alert */}
-      {isSleepTime && (
+      {isSleepTime && !isSleeping && (
         <Animated.View style={[styles.sleepAlert, { transform: [{ scale: pulseAnim }], marginTop: 20 }]}>
           <MaterialCommunityIcons name="moon-waning-crescent" size={32} color="#FFFFFF" />
           <View style={styles.sleepAlertContent}>
@@ -777,7 +778,6 @@ export default function NotificationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0E6FA',
   },
   scrollContainer: {
     flex: 1,
@@ -848,7 +848,6 @@ const styles = StyleSheet.create({
     color: '#E0E7FF',
   },
   sleepStatusCard: {
-    backgroundColor: '#FFFFFF',
     margin: 24,
     marginTop: 0,
     padding: 20,
@@ -939,7 +938,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   reminderCard: {
-    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -995,7 +993,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   notificationCard: {
-    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     marginBottom: 12,
@@ -1051,7 +1048,6 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statCard: {
-    backgroundColor: '#FFFFFF',
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -1096,7 +1092,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   settingsContainer: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     width: width * 0.9,
     maxHeight: '80%',

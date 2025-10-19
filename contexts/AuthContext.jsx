@@ -8,7 +8,8 @@ import {
   updateProfile,
   signOut,
   GoogleAuthProvider,
-  signInWithPopup
+  signInWithPopup,
+  sendPasswordResetEmail
 } from 'firebase/auth';
 import { Platform } from 'react-native';
 import * as WebBrowser from 'expo-web-browser';
@@ -85,14 +86,16 @@ export const AuthProvider = ({ children }) => {
             console.log('AuthContext: Checking new user flag:', newUserFlag);
             console.log('AuthContext: Has completed onboarding:', hasCompletedOnboarding);
             
-            if (newUserFlag === 'true' || !hasCompletedOnboarding) {
-              console.log('AuthContext: User is new or hasn\'t completed onboarding');
+            if (newUserFlag === 'true' && hasCompletedOnboarding !== 'true') {
+              console.log('AuthContext: User is new and hasn\'t completed onboarding');
               setIsNewUser(true);
               // Ensure the flag is set
               await AsyncStorage.setItem('isNewUser', 'true');
             } else {
-              console.log('AuthContext: User has completed onboarding, is existing user');
+              console.log('AuthContext: User has completed onboarding or is existing user');
               setIsNewUser(false);
+              // Clear the new user flag for existing users
+              await AsyncStorage.removeItem('isNewUser');
             }
             
             console.log('AuthContext: User session restored successfully');
@@ -215,18 +218,24 @@ export const AuthProvider = ({ children }) => {
             
             // Check if this is a new user's first login
             const newUserFlag = await AsyncStorage.getItem('isNewUser');
-            console.log('AuthContext: Login - checking new user flag:', newUserFlag);
+            const userId = auth.currentUser.uid;
+            const hasCompletedOnboarding = await AsyncStorage.getItem(`onboarding_completed_${userId}`);
             
-            if (newUserFlag === 'true') {
-              // This is a new user's first login after registration, mark them for onboarding
+            console.log('AuthContext: Login - checking new user flag:', newUserFlag);
+            console.log('AuthContext: Login - has completed onboarding:', hasCompletedOnboarding);
+            
+            if (newUserFlag === 'true' && hasCompletedOnboarding !== 'true') {
+              // This is a new user who hasn't completed onboarding
               console.log('AuthContext: New user logging in, setting isNewUser to true');
               setIsNewUser(true);
               // Keep the flag in AsyncStorage for onAuthStateChanged to pick up
               await AsyncStorage.setItem('isNewUser', 'true');
             } else {
-              // Existing user - check their onboarding status
-              console.log('AuthContext: Existing user logging in');
+              // Existing user or user who has completed onboarding
+              console.log('AuthContext: Existing user or completed onboarding user logging in');
               setIsNewUser(false);
+              // Clear the new user flag for existing users
+              await AsyncStorage.removeItem('isNewUser');
             }
             
             return { success: true };
@@ -363,6 +372,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const resetPassword = async (email) => {
+    try {
+      if (firebaseReady) {
+        await sendPasswordResetEmail(auth, email);
+        return { success: true };
+      } else {
+        return { success: false, error: 'Firebase not configured' };
+      }
+    } catch (error) {
+      console.error('Reset password error:', error);
+      return { success: false, error: error.message || 'Failed to send reset email', errorCode: error?.code };
+    }
+  };
+
   const logout = async () => {
     try {
       console.log('AuthContext: Starting logout process');
@@ -449,13 +472,15 @@ export const AuthProvider = ({ children }) => {
 
   const completeOnboarding = async () => {
     try {
-      console.log('AuthContext: Completing onboarding');
+      console.log('AuthContext: Completing onboarding for user:', user?.id);
       await AsyncStorage.removeItem('isNewUser');
       if (user?.id) {
         await AsyncStorage.setItem(`onboarding_completed_${user.id}`, 'true');
         setHasCompletedOnboarding(true);
+        console.log('AuthContext: Onboarding completed flag set for user:', user.id);
       }
       setIsNewUser(false);
+      console.log('AuthContext: User marked as existing user (onboarding complete)');
       console.log('AuthContext: Onboarding completed, isNewUser set to false');
       return { success: true };
     } catch (error) {
@@ -475,6 +500,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     updateUser,
     googleLogin,
+    resetPassword,
     completeOnboarding,
     checkSessionValidity
   };
@@ -485,99 +511,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-      if (Platform.OS === 'web') {
-        const provider = new GoogleAuthProvider();
-        const result = await signInWithPopup(auth, provider);
-        
-        // Check if this is a new user (first time signing in with Google)
-        const isNewUser = result.additionalUserInfo?.isNewUser;
-        if (isNewUser) {
-          console.log('AuthContext: Google login - new user detected');
-          await AsyncStorage.setItem('isNewUser', 'true');
-          setIsNewUser(true);
-        } else {
-          console.log('AuthContext: Google login - existing user');
-          setIsNewUser(false);
-        }
-        
-        return { success: true };
-      }
-      // Native mobile via Google OAuth -> Firebase credential
-      WebBrowser.maybeCompleteAuthSession();
-      const redirectUri = AuthSession.makeRedirectUri({ useProxy: true });
-      const discovery = {
-        authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-        tokenEndpoint: 'https://oauth2.googleapis.com/token',
-      };
-      const result = await AuthSession.startAsync({
-        authUrl:
-          `${discovery.authorizationEndpoint}` +
-          `?client_id=${process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID}` +
-          `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-          `&response_type=token` +
-          `&scope=${encodeURIComponent('profile email')}`,
-      });
-      if (result.type !== 'success' || !result.params?.access_token) {
-        return { success: false, error: 'Google sign-in cancelled' };
-      }
-      // Exchange Google OAuth token for Firebase credential via IdP (requires backend or googleIdToken)
-      // Simplest path for Expo: use signInWithPopup on web or use native SDKs in dev build.
-      return { success: false, error: 'Use web for Google login or provide native client config.' };
-    } catch (error) {
-      console.error('Google login error:', error);
-      return { success: false, error: error.message || 'Google login failed' };
-    }
-  };
-
-  const updateUser = async (updatedData) => {
-    try {
-      const newUserData = { ...user, ...updatedData };
-      await AsyncStorage.setItem('userData', JSON.stringify(newUserData));
-      setUser(newUserData);
-      return { success: true, user: newUserData };
-    } catch (error) {
-      console.error('Update user error:', error);
-      return { success: false, error: 'Update failed' };
-    }
-  };
-
-  const completeOnboarding = async () => {
-    try {
-      console.log('AuthContext: Completing onboarding');
-      await AsyncStorage.removeItem('isNewUser');
-      if (user?.id) {
-        await AsyncStorage.setItem(`onboarding_completed_${user.id}`, 'true');
-        setHasCompletedOnboarding(true);
-      }
-      setIsNewUser(false);
-      console.log('AuthContext: Onboarding completed, isNewUser set to false');
-      return { success: true };
-    } catch (error) {
-      console.error('Complete onboarding error:', error);
-      return { success: false, error: 'Failed to complete onboarding' };
-    }
-  };
-
-  const value = {
-    user,
-    isAuthenticated,
-    isLoading,
-    isNewUser,
-    hasCompletedOnboarding,
-    login,
-    register,
-    logout,
-    updateUser,
-    googleLogin,
-    completeOnboarding,
-    checkSessionValidity
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-};
-

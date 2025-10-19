@@ -11,10 +11,13 @@ export default function Index() {
 
   // AuthRouter will handle navigation for authenticated users
 
-  const handleGetStarted = () => {
+  const handleLogin = () => {
     router.push('/login');
   };
 
+  const handleRegister = () => {
+    router.push('/register');
+  };
 
   // Show welcome screen
   return (
@@ -27,11 +30,19 @@ export default function Index() {
 
       <View style={styles.buttonColumn}>
         <TouchableOpacity
-          style={[styles.button, styles.getStartedButton]}
-          onPress={handleGetStarted}
+          style={[styles.button, styles.loginButton]}
+          onPress={handleLogin}
           activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Get Started</Text>
+          <Text style={styles.buttonText}>Login</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.button, styles.registerButton]}
+          onPress={handleRegister}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.registerButtonText}>Register</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -88,7 +99,7 @@ const styles = StyleSheet.create({
       },
     }),
   },
-  getStartedButton: {
+  loginButton: {
     backgroundColor: '#9B70D8', // Match login screen primary color
     borderWidth: 0,
     // Professional gradient-like effect
@@ -101,8 +112,29 @@ const styles = StyleSheet.create({
     shadowRadius: isWeb ? 20 : 12,
     elevation: isWeb ? 15 : 8,
   },
+  registerButton: {
+    backgroundColor: '#FFFFFF', // White background for register button
+    borderWidth: 2,
+    borderColor: '#9B70D8', // Purple border
+    // Professional gradient-like effect
+    shadowColor: '#9B70D8',
+    shadowOffset: {
+      width: 0,
+      height: isWeb ? 8 : 4,
+    },
+    shadowOpacity: isWeb ? 0.15 : 0.1,
+    shadowRadius: isWeb ? 16 : 8,
+    elevation: isWeb ? 8 : 4,
+  },
   buttonText: {
     color: '#FFFFFF',
+    fontSize: isWeb ? 18 : 16,
+    fontWeight: '600',
+    letterSpacing: isWeb ? 0.3 : 0,
+    textAlign: 'center',
+  },
+  registerButtonText: {
+    color: '#9B70D8',
     fontSize: isWeb ? 18 : 16,
     fontWeight: '600',
     letterSpacing: isWeb ? 0.3 : 0,

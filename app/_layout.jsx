@@ -6,11 +6,38 @@ import { JournalProvider } from '../contexts/JournalContext';
 import { AuthProvider } from '../contexts/AuthContext';
 import { SoundProvider } from '../contexts/SoundContext';
 import { SleepProvider } from '../contexts/SleepContext';
+import { MoodProvider } from '../contexts/MoodContext';
+import { ActivityTrackingProvider } from '../contexts/ActivityTrackingContext';
+import { useAuth } from '../contexts/AuthContext';
 import { SimpleNotificationProvider } from '../contexts/SimpleNotificationContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import AuthRouter from '../components/AuthRouter';
 import NetworkStatus from '../components/NetworkStatus';
 import ErrorBoundary from '../components/ErrorBoundary';
+
+// Wrapper component to pass user to SleepProvider
+function SleepProviderWrapper({ children }) {
+  const { user } = useAuth();
+  return <SleepProvider user={user}>{children}</SleepProvider>;
+}
+
+// Wrapper component to pass user to MoodProvider
+function MoodProviderWrapper({ children }) {
+  const { user } = useAuth();
+  return <MoodProvider user={user}>{children}</MoodProvider>;
+}
+
+// Wrapper component to pass user to ActivityTrackingProvider
+function ActivityTrackingProviderWrapper({ children }) {
+  const { user } = useAuth();
+  return <ActivityTrackingProvider user={user}>{children}</ActivityTrackingProvider>;
+}
+
+// Wrapper component to pass user to JournalProvider
+function JournalProviderWrapper({ children }) {
+  const { user } = useAuth();
+  return <JournalProvider user={user}>{children}</JournalProvider>;
+}
 
 export default function Layout() {
   useEffect(() => {
@@ -63,13 +90,15 @@ export default function Layout() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ErrorBoundary>
-        <ThemeProvider>
+      <ThemeProvider>
+        <ErrorBoundary>
           <AuthProvider>
             <SoundProvider>
-              <JournalProvider>
-                <SleepProvider>
-                  <SimpleNotificationProvider>
+              <JournalProviderWrapper>
+                <SleepProviderWrapper>
+                  <MoodProviderWrapper>
+                    <ActivityTrackingProviderWrapper>
+                      <SimpleNotificationProvider>
                     <AuthRouter>
                       <NetworkStatus />
                       <Stack
@@ -80,13 +109,15 @@ export default function Layout() {
                         }}
                       />
                     </AuthRouter>
-                  </SimpleNotificationProvider>
-                </SleepProvider>
-              </JournalProvider>
+                      </SimpleNotificationProvider>
+                    </ActivityTrackingProviderWrapper>
+                  </MoodProviderWrapper>
+                </SleepProviderWrapper>
+              </JournalProviderWrapper>
             </SoundProvider>
           </AuthProvider>
-        </ThemeProvider>
-      </ErrorBoundary>
+        </ErrorBoundary>
+      </ThemeProvider>
     </GestureHandlerRootView>
   );
 }

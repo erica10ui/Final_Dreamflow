@@ -89,7 +89,7 @@ export default function QuizResults() {
         {/* Results Content */}
         <View style={styles.content}>
           {/* Title */}
-          <Text style={[styles.title, { color: colors.text }]}>🎉 You're a Night Owl! 🎉</Text>
+          <Text style={[styles.title, { color: colors.text }]}>You're a Night Owl</Text>
           
           {/* Subtitle */}
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>

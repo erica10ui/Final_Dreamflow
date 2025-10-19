@@ -10,7 +10,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
-import { useTheme } from '../contexts/ThemeContext';
+import { useSafeTheme } from '../contexts/useSafeTheme';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -18,14 +18,14 @@ import { router } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 export default function OnboardingSosRelief() {
-  const { colors } = useTheme();
+  const { colors } = useSafeTheme();
   
   const handleNext = () => {
-    router.push('/onboarding-sleep-mentor');
+    router.push('/onboarding-sleep-type');
   };
 
   const handleBack = () => {
-    router.push('/onboarding-sleep-type');
+    router.push('/onboarding-sleep-mentor');
   };
 
   const handleSkip = () => {

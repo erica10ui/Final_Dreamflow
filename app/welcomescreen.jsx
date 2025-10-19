@@ -2,26 +2,34 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { useSound } from '../contexts/SoundContext';
+import { useSafeTheme } from '../contexts/useSafeTheme';
 
 export default function WelcomeScreen() {
   const { playSound } = useSound();
+  const { colors } = useSafeTheme();
 
   const handleGetStarted = () => {
     playSound('success');
-    router.push('/onboarding-sleep-type');
+    router.push('/onboarding-sleep-mentor');
   };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome to</Text>
-      <Text style={styles.appName}>DreamFlow</Text>
-      <Text style={styles.subtitle}>
-        Personalized insomnia relief, just for you.
-      </Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Welcome Content */}
+      <View style={styles.welcomeContent}>
+        <Text style={[styles.title, { color: colors.text }]}>Welcome to</Text>
+        <Text style={[styles.appName, { color: colors.text }]}>DreamFlow</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Personalized insomnia relief, just for you.
+        </Text>
+      </View>
 
-      <TouchableOpacity style={styles.getStartedButton} onPress={handleGetStarted}>
-        <Text style={styles.getStartedText}>Get Started</Text>
-      </TouchableOpacity>
+      {/* Action Button */}
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity style={[styles.getStartedButton, { backgroundColor: colors.primary }]} onPress={handleGetStarted}>
+          <Text style={styles.getStartedText}>Get Started</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -29,44 +37,58 @@ export default function WelcomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#E8D5F2',
     paddingHorizontal: 24,
+    paddingTop: 80,
+    paddingBottom: 40,
+  },
+  welcomeContent: {
+    alignItems: 'center',
+    marginBottom: 80,
   },
   title: {
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: '700',
-    color: '#1c1e21',
     textAlign: 'center',
     marginBottom: 8,
+    letterSpacing: 0.5,
   },
   appName: {
-    fontSize: 28,
+    fontSize: 36,
     fontWeight: '700',
-    color: '#1c1e21',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 32,
+    letterSpacing: 0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 20,
     textAlign: 'center',
-    color: '#1c1e21',
-    marginBottom: 60,
+    marginBottom: 0,
     paddingHorizontal: 20,
-    lineHeight: 24,
+    lineHeight: 30,
+    fontWeight: '400',
+  },
+  buttonContainer: {
+    alignItems: 'center',
   },
   getStartedButton: {
-    backgroundColor: '#8B5CF6',
-    paddingVertical: 16,
-    paddingHorizontal: 40,
-    borderRadius: 12,
-    minWidth: 200,
+    paddingVertical: 20,
+    paddingHorizontal: 56,
+    borderRadius: 16,
+    minWidth: 260,
     alignItems: 'center',
+    shadowColor: '#9B70D8',
+    shadowOffset: {
+      width: 0,
+      height: 8,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
   },
   getStartedText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
+    letterSpacing: 0.5,
   },
 });

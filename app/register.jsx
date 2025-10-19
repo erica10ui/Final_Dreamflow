@@ -257,69 +257,77 @@ export default function Register() {
           {/* First Name */}
           <View>
             <Text style={[styles.inputLabel, { color: colors.text }]}>First Name</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
-                firstNameError ? styles.inputError : isFirstNameValid ? styles.inputSuccess : null
-              ]}
-              placeholder="Enter your first name"
-              value={firstName}
-              onChangeText={handleFirstNameChange}
-              autoCapitalize="words"
-            />
+            <View style={[
+              styles.inputContainer,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              firstNameError ? styles.inputError : isFirstNameValid ? styles.inputSuccess : null
+            ]}>
+              <TextInput
+                placeholder="Enter your first name"
+                value={firstName}
+                onChangeText={handleFirstNameChange}
+                style={styles.passwordInput}
+                autoCapitalize="words"
+              />
+            </View>
             {firstNameError ? <Text style={styles.errorText}>{firstNameError}</Text> : null}
           </View>
 
           {/* Last Name */}
           <View>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Last Name</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
-                lastNameError ? styles.inputError : isLastNameValid ? styles.inputSuccess : null
-              ]}
-              placeholder="Enter your last name"
-              value={lastName}
-              onChangeText={handleLastNameChange}
-              autoCapitalize="words"
-            />
+            <View style={[
+              styles.inputContainer,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              lastNameError ? styles.inputError : isLastNameValid ? styles.inputSuccess : null
+            ]}>
+              <TextInput
+                placeholder="Enter your last name"
+                value={lastName}
+                onChangeText={handleLastNameChange}
+                style={styles.passwordInput}
+                autoCapitalize="words"
+              />
+            </View>
             {lastNameError ? <Text style={styles.errorText}>{lastNameError}</Text> : null}
           </View>
 
           {/* Email */}
           <View>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Email</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
-                emailError ? styles.inputError : isEmailValid ? styles.inputSuccess : null
-              ]}
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={handleEmailChange}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            <View style={[
+              styles.inputContainer,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              emailError ? styles.inputError : isEmailValid ? styles.inputSuccess : null
+            ]}>
+              <TextInput
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={handleEmailChange}
+                style={styles.passwordInput}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
             {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
           </View>
 
           {/* Username */}
           <View>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Username</Text>
-            <TextInput
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
-                usernameError ? styles.inputError : isUsernameValid ? styles.inputSuccess : null
-              ]}
-              placeholder="Choose a username"
-              value={username}
-              onChangeText={handleUsernameChange}
-              autoCapitalize="none"
-            />
+            <View style={[
+              styles.inputContainer,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              usernameError ? styles.inputError : isUsernameValid ? styles.inputSuccess : null
+            ]}>
+              <TextInput
+                placeholder="Choose a username"
+                value={username}
+                onChangeText={handleUsernameChange}
+                style={styles.passwordInput}
+                autoCapitalize="none"
+              />
+            </View>
             {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
           </View>
 
@@ -353,6 +361,7 @@ export default function Register() {
           </View>
 
           <View>
+            <Text style={[styles.inputLabel, { color: colors.text }]}>Confirm Password</Text>
             <View style={[
               styles.inputContainer,
               { backgroundColor: colors.surface, borderColor: colors.border },
@@ -373,7 +382,7 @@ export default function Register() {
                 <MaterialCommunityIcons
                   name={confirmPasswordVisible ? 'eye-off' : 'eye'}
                   size={24}
-                  color="gray"
+                  color="#9B70D8"
                 />
               </TouchableOpacity>
             </View>
@@ -449,13 +458,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
-    paddingTop: isWeb ? 60 : 40,
+    paddingTop: isWeb ? 100 : 80,
     paddingBottom: isWeb ? 40 : 30,
     minHeight: isWeb ? '100vh' : '100%',
   },
   headerContainer: {
     alignItems: 'center',
-    marginBottom: isWeb ? 30 : 20,
+    marginBottom: isWeb ? 50 : 40,
   },
   titleContainer: {
     position: 'relative',

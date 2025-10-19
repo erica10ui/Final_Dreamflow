@@ -145,18 +145,20 @@ export default function Login() {
         <View style={styles.formContainer}>
           <View>
             <Text style={[styles.inputLabel, { color: colors.text }]}>Email</Text>
-            <TextInput
-              placeholder="Enter your email"
-              value={email}
-              onChangeText={handleEmailChange}
-              style={[
-                styles.input,
-                { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border },
-                emailError ? styles.inputError : isEmailValid ? styles.inputSuccess : null
-              ]}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
+            <View style={[
+              styles.inputContainer,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              emailError ? styles.inputError : isEmailValid ? styles.inputSuccess : null
+            ]}>
+              <TextInput
+                placeholder="Enter your email"
+                value={email}
+                onChangeText={handleEmailChange}
+                style={[styles.passwordInput, { color: colors.text }]}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
             {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
           </View>
 

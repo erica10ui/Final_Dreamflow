@@ -77,7 +77,7 @@ export default function JournalScreen() {
   const qualityOptions = ['Excellent', 'Good', 'Fair', 'Poor'];
 
   // Sort entries by date (newest first)
-  const filteredAndSortedEntries = dreamEntries
+  const filteredAndSortedEntries = (dreamEntries || [])
     .sort((a, b) => {
       const dateA = new Date(a.createdAt);
       const dateB = new Date(b.createdAt);
@@ -137,7 +137,7 @@ export default function JournalScreen() {
   };
 
   const handleEditEntry = (id) => {
-    const entryToEdit = dreamEntries.find(entry => entry.id === id);
+    const entryToEdit = (dreamEntries || []).find(entry => entry.id === id);
     if (entryToEdit) {
       setCurrentEntryId(id);
       setTitle(entryToEdit.title);
@@ -290,7 +290,7 @@ export default function JournalScreen() {
       <View style={styles.statsContainer}>
         <View style={[styles.statCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
           <MaterialCommunityIcons name="bookmark" size={24} color={colors.primary} />
-          <Text style={[styles.statNumber, { color: colors.text }]}>{dreamEntries.length}</Text>
+          <Text style={[styles.statNumber, { color: colors.text }]}>{(dreamEntries || []).length}</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Dreams</Text>
         </View>
         <View style={[styles.statCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
@@ -308,7 +308,7 @@ export default function JournalScreen() {
       {/* Dream Entries */}
       <View style={styles.dreamEntriesSection}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Recent Dreams</Text>
+          <Text style={styles.sectionTitle}>Dream Log:</Text>
           <Text style={styles.sectionSubtitle}>{filteredAndSortedEntries.length} entries</Text>
         </View>
 
@@ -316,20 +316,20 @@ export default function JournalScreen() {
           {filteredAndSortedEntries.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={styles.emptyStateIcon}>
-                <MaterialCommunityIcons name="sleep" size={64} color="#D1D5DB" />
+                <MaterialCommunityIcons name="sleep" size={64} color={colors.textMuted} />
               </View>
-              <Text style={styles.emptyStateTitle}>No dreams yet</Text>
-              <Text style={styles.emptyStateText}>
+              <Text style={[styles.emptyStateTitle, { color: colors.text }]}>No dreams yet</Text>
+              <Text style={[styles.emptyStateText, { color: colors.textSecondary }]}>
                 Start your dream journey by adding your first entry
               </Text>
-              <TouchableOpacity style={styles.addFirstEntryButton} onPress={handleAddEntry}>
+              <TouchableOpacity style={[styles.addFirstEntryButton, { backgroundColor: colors.primary }]} onPress={handleAddEntry}>
                 <MaterialCommunityIcons name="plus" size={20} color="#FFFFFF" />
                 <Text style={styles.addFirstEntryText}>Add Your First Dream</Text>
               </TouchableOpacity>
             </View>
           ) : (
             filteredAndSortedEntries.map((entry) => (
-              <View key={entry.id} style={[styles.dreamEntry, { backgroundColor: colors.surface, shadowColor: colors.shadow }]}>
+              <View key={entry.id} style={[styles.dreamEntry, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
                 <View style={styles.dreamEntryHeader}>
                   <View style={styles.dreamEntryInfo}>
                     <View style={styles.dreamEntryTitleRow}>
@@ -384,44 +384,48 @@ export default function JournalScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <View style={[styles.modalContainer, { backgroundColor: '#FFFFFF' }]}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Add New Dream</Text>
-            <TouchableOpacity
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Add New Dream</Text>
+            <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setShowAddModal(false)}
             >
-              <MaterialCommunityIcons name="close" size={24} color="#6B7280" />
+              <MaterialCommunityIcons name="close" size={24} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+          <ScrollView style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Title *</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Title *</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { 
+                  color: colors.text, 
+                  borderColor: colors.border, 
+                  backgroundColor: colors.card 
+                }]}
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Enter dream title"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Description *</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Description *</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Describe your dream..."
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 multiline
                 numberOfLines={4}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Mood</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Mood</Text>
               <View style={styles.moodContainer}>
                 {moodOptions.map((moodOption) => (
                   <TouchableOpacity
@@ -439,7 +443,7 @@ export default function JournalScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Sleep Quality</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Sleep Quality</Text>
               <View style={styles.qualityContainer}>
                 {qualityOptions.map((quality) => (
                   <TouchableOpacity
@@ -464,13 +468,17 @@ export default function JournalScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Tags (optional)</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Tags (optional)</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { 
+                  color: colors.text, 
+                  borderColor: colors.border, 
+                  backgroundColor: colors.card 
+                }]}
                 value={tags}
                 onChangeText={setTags}
                 placeholder="Enter tags separated by commas"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           </ScrollView>
@@ -501,44 +509,48 @@ export default function JournalScreen() {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <View style={[styles.modalContainer, { backgroundColor: '#FFFFFF' }]}>
+        <View style={[styles.modalContainer, { backgroundColor: colors.surface }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Dream</Text>
-            <TouchableOpacity
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Edit Dream</Text>
+            <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setShowEditModal(false)}
             >
-              <MaterialCommunityIcons name="close" size={24} color="#6B7280" />
+              <MaterialCommunityIcons name="close" size={24} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={[styles.modalContent, { backgroundColor: '#FFFFFF' }]}>
+          <ScrollView style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Title *</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Title *</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { 
+                  color: colors.text, 
+                  borderColor: colors.border, 
+                  backgroundColor: colors.card 
+                }]}
                 value={title}
                 onChangeText={setTitle}
                 placeholder="Enter dream title"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Description *</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Description *</Text>
               <TextInput
                 style={[styles.textInput, styles.textArea]}
                 value={description}
                 onChangeText={setDescription}
                 placeholder="Describe your dream..."
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
                 multiline
                 numberOfLines={4}
               />
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Mood</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Mood</Text>
               <View style={styles.moodContainer}>
                 {moodOptions.map((moodOption) => (
                   <TouchableOpacity
@@ -556,7 +568,7 @@ export default function JournalScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Sleep Quality</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Sleep Quality</Text>
               <View style={styles.qualityContainer}>
                 {qualityOptions.map((quality) => (
                   <TouchableOpacity
@@ -581,13 +593,17 @@ export default function JournalScreen() {
             </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Tags (optional)</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Tags (optional)</Text>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { 
+                  color: colors.text, 
+                  borderColor: colors.border, 
+                  backgroundColor: colors.card 
+                }]}
                 value={tags}
                 onChangeText={setTags}
                 placeholder="Enter tags separated by commas"
-                placeholderTextColor="#9CA3AF"
+                placeholderTextColor={colors.textMuted}
               />
             </View>
           </ScrollView>
@@ -628,15 +644,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F0E6FA',
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#6A3E9E',
   },
   header: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 20,
     marginBottom: 24,
     shadowColor: '#000',
@@ -815,7 +828,6 @@ const styles = StyleSheet.create({
   },
   dreamEntryDescription: {
     fontSize: 15,
-    color: '#4B5563',
     lineHeight: 22,
     marginBottom: 12,
     fontStyle: 'italic',

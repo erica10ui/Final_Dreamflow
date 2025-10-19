@@ -73,7 +73,7 @@ const TabsLayout = () => {
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="notifications"
         options={{
           title: 'Notifications',
           headerShown: false,
@@ -98,13 +98,3 @@ const styles = StyleSheet.create({
 });
 
 export default TabsLayout;
-
-
-  },
-  activeTabIconContainer: {
-    backgroundColor: 'rgba(139, 92, 246, 0.1)',
-  },
-});
-
-export default TabsLayout;
-

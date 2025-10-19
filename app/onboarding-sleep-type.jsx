@@ -21,7 +21,7 @@ export default function OnboardingSleepType() {
   const { colors } = useSafeTheme();
   
   const handleNext = () => {
-    router.push('/onboarding-sos-relief');
+    router.push('/intro-quiz');
   };
 
   const onGestureEvent = (event) => {
@@ -46,8 +46,8 @@ export default function OnboardingSleepType() {
         {/* Progress Indicators */}
         <View style={styles.progressContainer}>
           <View style={[styles.progressDot, { backgroundColor: colors.primary }]} />
-          <View style={[styles.progressDot, { backgroundColor: colors.border }]} />
-          <View style={[styles.progressDot, { backgroundColor: colors.border }]} />
+          <View style={[styles.progressDot, { backgroundColor: colors.primary }]} />
+          <View style={[styles.progressDot, { backgroundColor: colors.primary }]} />
         </View>
 
         {/* Title */}

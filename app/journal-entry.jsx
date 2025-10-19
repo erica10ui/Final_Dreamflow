@@ -12,7 +12,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, router } from 'expo-router';
 import { useSound } from '../contexts/SoundContext';
 import { useJournal } from '../contexts/JournalContext';
-import { useSafeTheme } from '../contexts/useSafeTheme';
+import { useTheme } from '../contexts/ThemeContext';
 
 // ✅ Import Firebase
 import { 
@@ -28,8 +28,37 @@ import { auth, db } from "../lib/firebase";
 
 export default function JournalEntry() {
   const { id } = useLocalSearchParams();
+  const { colors, isDarkMode } = useTheme();
+
+  // Stars Background Component (shining stars with crescent emoji)
+  const renderStars = () => {
+    if (!isDarkMode) return null;
+    
+    return (
+      <View style={styles.nightSkyContainer}>
+        {/* Crescent Emoji */}
+        <View style={styles.crescentContainer}>
+          <Text style={styles.crescentEmoji}>🌙</Text>
+        </View>
+        
+        {/* Animated Stars */}
+        {[...Array(20)].map((_, index) => (
+          <View
+            key={index}
+            style={[
+              styles.star,
+              {
+                left: Math.random() * 100 + '%',
+                top: Math.random() * 100 + '%',
+                animationDelay: Math.random() * 3 + 's',
+              },
+            ]}
+          />
+        ))}
+      </View>
+    );
+  };
   const { playSound } = useSound();
-  const { colors } = useSafeTheme();
   const { getEntryById, isRealtimeConnected } = useJournal();
 
   const [entry, setEntry] = useState(null);
@@ -213,6 +242,7 @@ export default function JournalEntry() {
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
+      {renderStars()}
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity 
@@ -276,21 +306,25 @@ export default function JournalEntry() {
         {isEditing ? (
           <>
             <TextInput
-              style={styles.titleInput}
+              style={[styles.titleInput, { color: colors.text, borderBottomColor: colors.border }]}
               placeholder="Dream title..."
               value={formData.title}
               onChangeText={(text) => setFormData({...formData, title: text})}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
             />
             
             <TextInput
-              style={styles.descriptionInput}
+              style={[styles.descriptionInput, { 
+                color: colors.text, 
+                borderColor: colors.border, 
+                backgroundColor: colors.card 
+              }]}
               placeholder="Describe your dream..."
               value={formData.description}
               onChangeText={(text) => setFormData({...formData, description: text})}
               multiline
               numberOfLines={8}
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={colors.textMuted}
             />
 
             {/* Mood Selection */}
@@ -575,5 +609,38 @@ const styles = StyleSheet.create({
     color: '#EF4444',
     textAlign: 'center',
     marginTop: 50,
+  },
+  // Stars Animation Styles
+  nightSkyContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  crescentContainer: {
+    position: 'absolute',
+    top: 60,
+    right: 20,
+    zIndex: 1,
+  },
+  crescentEmoji: {
+    fontSize: 40,
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 10,
+  },
+  star: {
+    position: 'absolute',
+    width: 3,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { createDatabaseManager } from '../lib/database.js';
 
 const SleepContext = createContext();
 
@@ -13,33 +14,23 @@ export const useSleep = () => {
   return context;
 };
 
-// Configure notifications
+// Notification setup
 const setupNotifications = async () => {
   try {
-    // Request permissions
-    const { status: existingStatus } = await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
-    
-    if (existingStatus !== 'granted') {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('sleep-reminders', {
+        name: 'Sleep Reminders',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#9B70D8',
+      });
     }
-    
-    if (finalStatus !== 'granted') {
-      console.warn('Notification permissions not granted');
+
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') {
+      console.warn('Notification permission not granted');
       return false;
     }
-
-    // Configure notification behavior
-    Notifications.setNotificationHandler({
-      handleNotification: async () => ({
-        shouldShowAlert: true,
-        shouldPlaySound: true,
-        shouldSetBadge: false,
-      }),
-    });
-
-    console.log('Notifications setup successfully');
     return true;
   } catch (error) {
     console.warn('Error setting up notifications:', error.message);
@@ -47,7 +38,7 @@ const setupNotifications = async () => {
   }
 };
 
-export const SleepProvider = ({ children }) => {
+export const SleepProvider = ({ children, user }) => {
   const [sleepSessions, setSleepSessions] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
   const [isSleeping, setIsSleeping] = useState(false);
@@ -55,264 +46,273 @@ export const SleepProvider = ({ children }) => {
   const [bedtime, setBedtime] = useState('22:00');
   const [wakeTime, setWakeTime] = useState('06:00');
   const [notifications, setNotifications] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Database manager instance
+  const [dbManager, setDbManager] = useState(null);
 
-  // Load data from storage
+  // Timeout to prevent infinite loading
   useEffect(() => {
-    loadSleepData();
-  }, []);
+    const timeout = setTimeout(() => {
+      if (isLoading) {
+        console.log('SleepContext: Loading timeout reached, setting loading to false');
+        setIsLoading(false);
+      }
+    }, 10000); // 10 second timeout
 
+    return () => clearTimeout(timeout);
+  }, [isLoading]);
+
+  // Initialize database manager when user changes
+  useEffect(() => {
+    console.log('SleepContext: User changed:', user?.uid || 'No user');
+    if (user && user.uid) {
+      const manager = createDatabaseManager(user.uid);
+      setDbManager(manager);
+      console.log('SleepContext: Loading sleep data for user:', user.uid);
+      loadSleepDataFromFirebase(manager);
+    } else {
+      setDbManager(null);
+      console.log('SleepContext: No user, setting loading to false');
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  // Load sleep data from organized Firebase structure
+  const loadSleepDataFromFirebase = async (manager) => {
+    if (!manager) {
+      setIsLoading(false);
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      
+      // Load sleep sessions from dedicated collection
+      const sessions = await manager.getSleepSessions(30);
+      setSleepSessions(sessions);
+      
+      // Load user preferences from user document
+      const userStats = await manager.getUserStatistics();
+      if (userStats.sleepGoal) setSleepGoal(userStats.sleepGoal);
+      if (userStats.bedtime) setBedtime(userStats.bedtime);
+      if (userStats.wakeTime) setWakeTime(userStats.wakeTime);
+      
+      // Also load from AsyncStorage as fallback
+      await loadSleepData();
+    } catch (error) {
+      console.error('Error loading sleep data from Firebase:', error);
+      await loadSleepData();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load data from AsyncStorage (fallback)
   const loadSleepData = async () => {
     try {
-      const [sessions, goal, bedTime, wakeTimeData, notifs] = await Promise.all([
+      const [sessionsData, currentSessionData, goalData, bedtimeData, wakeTimeData] = await Promise.all([
         AsyncStorage.getItem('sleepSessions'),
+        AsyncStorage.getItem('currentSession'),
         AsyncStorage.getItem('sleepGoal'),
         AsyncStorage.getItem('bedtime'),
-        AsyncStorage.getItem('wakeTime'),
-        AsyncStorage.getItem('sleepNotifications')
+        AsyncStorage.getItem('wakeTime')
       ]);
 
-      if (sessions) setSleepSessions(JSON.parse(sessions));
-      if (goal) setSleepGoal(parseInt(goal));
-      if (bedTime) setBedtime(bedTime);
+      if (sessionsData) setSleepSessions(JSON.parse(sessionsData));
+      if (currentSessionData) setCurrentSession(JSON.parse(currentSessionData));
+      if (goalData) setSleepGoal(parseInt(goalData));
+      if (bedtimeData) setBedtime(bedtimeData);
       if (wakeTimeData) setWakeTime(wakeTimeData);
-      if (notifs) setNotifications(JSON.parse(notifs));
     } catch (error) {
-      console.error('Error loading sleep data:', error);
+      console.error('Error loading sleep data from storage:', error);
     }
   };
 
-  const saveSleepData = async (key, data) => {
+  // Save sleep session to organized database
+  const saveSleepSession = async (sessionData) => {
+    if (!dbManager) {
+      // Fallback to AsyncStorage
+      await saveSleepData();
+      return;
+    }
+
     try {
-      await AsyncStorage.setItem(key, JSON.stringify(data));
+      const session = await dbManager.addSleepSession(sessionData);
+      
+      // Update local state
+      setSleepSessions(prev => [session, ...prev]);
+      
+      // Also save to AsyncStorage as backup
+      await saveSleepData();
+      
+      console.log('Sleep session saved to organized database:', session);
+      return session;
     } catch (error) {
-      console.error('Error saving sleep data:', error);
+      console.error('Error saving sleep session:', error);
+      // Fallback to AsyncStorage
+      await saveSleepData();
     }
   };
 
-  const startSleep = () => {
-    const session = {
-      id: Date.now(),
-      startTime: new Date(),
+  // Save data to AsyncStorage (fallback)
+  const saveSleepData = async () => {
+    try {
+      await Promise.all([
+        AsyncStorage.setItem('sleepSessions', JSON.stringify(sleepSessions)),
+        AsyncStorage.setItem('currentSession', JSON.stringify(currentSession)),
+        AsyncStorage.setItem('sleepGoal', sleepGoal.toString()),
+        AsyncStorage.setItem('bedtime', bedtime),
+        AsyncStorage.setItem('wakeTime', wakeTime)
+      ]);
+    } catch (error) {
+      console.error('Error saving sleep data to storage:', error);
+    }
+  };
+
+  // Update user preferences in organized database
+  const updateUserPreferences = async (preferences) => {
+    if (!dbManager) {
+      await saveSleepData();
+      return;
+    }
+
+    try {
+      await dbManager.updateUserStatistics(preferences);
+      await saveSleepData();
+      console.log('User preferences updated in organized database');
+    } catch (error) {
+      console.error('Error updating user preferences:', error);
+      await saveSleepData();
+    }
+  };
+
+  // Start sleep session
+  const startSleep = async () => {
+    const sessionData = {
+      startTime: new Date().toISOString(),
       endTime: null,
       duration: 0,
       quality: null,
-      notes: ''
+      notes: '',
+      bedtime: bedtime,
+      wakeTime: wakeTime,
+      sleepGoal: sleepGoal
     };
-    
+
+    const session = await saveSleepSession(sessionData);
     setCurrentSession(session);
     setIsSleeping(true);
-    saveSleepData('currentSession', session);
+    
+    console.log('Sleep session started:', session);
   };
 
-  const endSleep = (quality = 'Good', notes = '') => {
+  // End sleep session
+  const endSleep = async (quality = 'Good') => {
     if (!currentSession) return;
 
     const endTime = new Date();
-    const duration = Math.round((endTime - currentSession.startTime) / (1000 * 60 * 60)); // hours
+    const startTime = new Date(currentSession.startTime);
+    const duration = (endTime - startTime) / (1000 * 60 * 60); // hours
 
-    const completedSession = {
+    const updatedSession = {
       ...currentSession,
-      endTime,
-      duration,
-      quality,
-      notes
+      endTime: endTime.toISOString(),
+      duration: Math.round(duration * 10) / 10,
+      quality: quality
     };
 
-    const updatedSessions = [...sleepSessions, completedSession];
-    setSleepSessions(updatedSessions);
-    setCurrentSession(null);
-    setIsSleeping(false);
-    
-    saveSleepData('sleepSessions', updatedSessions);
-    saveSleepData('currentSession', null);
+    try {
+      if (dbManager) {
+        await dbManager.updateSleepSession(currentSession.id, updatedSession);
+      }
+      
+      // Update local state
+      setSleepSessions(prev => 
+        prev.map(session => 
+          session.id === currentSession.id ? updatedSession : session
+        )
+      );
+      
+      setCurrentSession(null);
+      setIsSleeping(false);
+      
+      await saveSleepData();
+      console.log('Sleep session ended:', updatedSession);
+    } catch (error) {
+      console.error('Error ending sleep session:', error);
+    }
   };
 
-  const updateSleepGoal = (goal) => {
+  // Update sleep goal
+  const updateSleepGoal = async (goal) => {
     setSleepGoal(goal);
-    saveSleepData('sleepGoal', goal);
+    await updateUserPreferences({ sleepGoal: goal });
   };
 
-  const updateBedtime = (time) => {
-    // Validate time format (HH:MM)
-    if (typeof time === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
-      setBedtime(time);
-      saveSleepData('bedtime', time);
-    } else {
-      console.warn('Invalid bedtime format:', time);
-    }
+  // Update bedtime
+  const updateBedtime = async (time) => {
+    setBedtime(time);
+    await updateUserPreferences({ bedtime: time });
   };
 
-  const updateWakeTime = (time) => {
-    // Validate time format (HH:MM)
-    if (typeof time === 'string' && /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(time)) {
-      setWakeTime(time);
-      saveSleepData('wakeTime', time);
-    } else {
-      console.warn('Invalid wake time format:', time);
-    }
+  // Update wake time
+  const updateWakeTime = async (time) => {
+    setWakeTime(time);
+    await updateUserPreferences({ wakeTime: time });
   };
 
-  const scheduleSleepReminder = async () => {
-    try {
-      // Setup notifications if not already done
-      const setupSuccess = await setupNotifications();
-      
-      if (!setupSuccess) {
-        console.warn('Notification setup failed, saving preference locally');
-        const newNotification = {
-          id: `bedtime_${Date.now()}`,
-          type: 'bedtime',
-          time: bedtime,
-          enabled: true
-        };
-        const updatedNotifications = [...notifications.filter(n => n.type !== 'bedtime'), newNotification];
-        setNotifications(updatedNotifications);
-        saveSleepData('sleepNotifications', updatedNotifications);
-        return newNotification.id;
-      }
-
-      // Cancel existing bedtime notifications
-      const existingNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      const bedtimeNotifications = existingNotifications.filter(n => 
-        n.content.data?.type === 'bedtime'
-      );
-      
-      for (const notification of bedtimeNotifications) {
-        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-      }
-
-      const [hour, minute] = bedtime.split(':').map(Number);
-      
-      // Validate parsed values
-      if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-        console.error('Invalid bedtime format for notification:', bedtime);
-        return null;
-      }
-      
-      const trigger = {
-        hour,
-        minute,
-        repeats: true,
-      };
-
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '🌙 Bedtime Reminder',
-          body: 'Time to wind down and prepare for sleep!',
-          sound: 'default',
-          data: { type: 'bedtime' },
-        },
-        trigger,
-      });
-
-      const newNotification = {
-        id: notificationId,
-        type: 'bedtime',
-        time: bedtime,
-        enabled: true
-      };
-
-      const updatedNotifications = [...notifications.filter(n => n.type !== 'bedtime'), newNotification];
-      setNotifications(updatedNotifications);
-      saveSleepData('sleepNotifications', updatedNotifications);
-
-      console.log('Bedtime reminder scheduled successfully');
-      return notificationId;
-    } catch (error) {
-      console.error('Error scheduling bedtime reminder:', error);
-      return null;
-    }
+  // Get current sleep duration
+  const getCurrentSleepDuration = () => {
+    if (!currentSession || !isSleeping) return 0;
+    
+    const startTime = new Date(currentSession.startTime);
+    const now = new Date();
+    const duration = (now - startTime) / (1000 * 60 * 60); // hours
+    
+    return Math.round(duration * 10) / 10;
   };
 
-  const scheduleWakeUpAlarm = async () => {
-    try {
-      // Setup notifications if not already done
-      const setupSuccess = await setupNotifications();
-      
-      if (!setupSuccess) {
-        console.warn('Notification setup failed, saving preference locally');
-        const newNotification = {
-          id: `wakeup_${Date.now()}`,
-          type: 'wakeup',
-          time: wakeTime,
-          enabled: true
-        };
-        const updatedNotifications = [...notifications.filter(n => n.type !== 'wakeup'), newNotification];
-        setNotifications(updatedNotifications);
-        saveSleepData('sleepNotifications', updatedNotifications);
-        return newNotification.id;
-      }
-
-      // Cancel existing wakeup notifications
-      const existingNotifications = await Notifications.getAllScheduledNotificationsAsync();
-      const wakeupNotifications = existingNotifications.filter(n => 
-        n.content.data?.type === 'wakeup'
-      );
-      
-      for (const notification of wakeupNotifications) {
-        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-      }
-
-      const [hour, minute] = wakeTime.split(':').map(Number);
-      
-      // Validate parsed values
-      if (isNaN(hour) || isNaN(minute) || hour < 0 || hour > 23 || minute < 0 || minute > 59) {
-        console.error('Invalid wake time format for notification:', wakeTime);
-        return null;
-      }
-      
-      const trigger = {
-        hour,
-        minute,
-        repeats: true,
-      };
-
-      const notificationId = await Notifications.scheduleNotificationAsync({
-        content: {
-          title: '☀️ Wake Up Time',
-          body: 'Good morning! Time to start your day!',
-          sound: 'default',
-          data: { type: 'wakeup' },
-        },
-        trigger,
-      });
-
-      const newNotification = {
-        id: notificationId,
-        type: 'wakeup',
-        time: wakeTime,
-        enabled: true
-      };
-
-      const updatedNotifications = [...notifications.filter(n => n.type !== 'wakeup'), newNotification];
-      setNotifications(updatedNotifications);
-      saveSleepData('sleepNotifications', updatedNotifications);
-
-      console.log('Wake up alarm scheduled successfully');
-      return notificationId;
-    } catch (error) {
-      console.error('Error scheduling wake up alarm:', error);
-      return null;
-    }
-  };
-
-  const cancelAllNotifications = async () => {
-    try {
-      await Notifications.cancelAllScheduledNotificationsAsync();
-      setNotifications([]);
-      saveSleepData('sleepNotifications', []);
-      console.log('All notifications cancelled');
-    } catch (error) {
-      console.error('Error cancelling notifications:', error);
-    }
-  };
-
+  // Get sleep statistics
   const getSleepStats = () => {
-    const last7Days = sleepSessions.slice(-7);
-    const totalSleep = last7Days.reduce((sum, session) => sum + session.duration, 0);
-    const averageSleep = last7Days.length > 0 ? totalSleep / last7Days.length : 0;
-    const sleepStreak = calculateSleepStreak();
-    const goalAchievement = last7Days.filter(session => session.duration >= sleepGoal).length;
+    if (sleepSessions.length === 0) {
+      return {
+        totalSessions: 0,
+        averageSleep: 0,
+        sleepStreak: 0,
+        goalAchievement: 0,
+        last7Days: 0,
+        totalSleep: 0
+      };
+    }
+
+    const last7Days = sleepSessions.filter(session => {
+      const sessionDate = new Date(session.startTime);
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      return sessionDate >= weekAgo;
+    });
+
+    const totalSleep = sleepSessions.reduce((sum, session) => sum + (session.duration || 0), 0);
+    const averageSleep = totalSleep / sleepSessions.length;
+    
+    // Calculate sleep streak
+    let sleepStreak = 0;
+    const sortedSessions = [...sleepSessions].sort((a, b) => new Date(b.startTime) - new Date(a.startTime));
+    
+    for (let i = 0; i < sortedSessions.length; i++) {
+      const sessionDate = new Date(sortedSessions[i].startTime).toDateString();
+      const previousDate = i > 0 ? new Date(sortedSessions[i - 1].startTime).toDateString() : null;
+      
+      if (i === 0 || sessionDate === previousDate) {
+        sleepStreak++;
+      } else {
+        break;
+      }
+    }
+
+    // Calculate goal achievement
+    const goalAchievement = last7Days.filter(session => (session.duration || 0) >= sleepGoal).length;
 
     return {
       totalSessions: sleepSessions.length,
@@ -324,56 +324,143 @@ export const SleepProvider = ({ children }) => {
     };
   };
 
-  const calculateSleepStreak = () => {
-    let streak = 0;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  // Schedule sleep reminder
+  const scheduleSleepReminder = async () => {
+    try {
+      const hasPermission = await setupNotifications();
+      if (!hasPermission) return false;
 
-    for (let i = 0; i < 30; i++) {
-      const checkDate = new Date(today);
-      checkDate.setDate(today.getDate() - i);
+      // Cancel existing notifications
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      // Schedule bedtime reminder
+      const bedtimeHour = parseInt(bedtime.split(':')[0]);
+      const bedtimeMinute = parseInt(bedtime.split(':')[1]);
       
-      const hasSleep = sleepSessions.some(session => {
-        const sessionDate = new Date(session.startTime);
-        sessionDate.setHours(0, 0, 0, 0);
-        return sessionDate.getTime() === checkDate.getTime() && session.duration >= sleepGoal;
+      const bedtimeDate = new Date();
+      bedtimeDate.setHours(bedtimeHour, bedtimeMinute, 0, 0);
+      
+      // If bedtime has passed today, schedule for tomorrow
+      if (bedtimeDate <= new Date()) {
+        bedtimeDate.setDate(bedtimeDate.getDate() + 1);
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '🌙 Bedtime Reminder',
+          body: `It's time to wind down and prepare for sleep. Your bedtime is ${bedtime}.`,
+          sound: 'default',
+        },
+        trigger: bedtimeDate,
       });
 
-      if (hasSleep) {
-        streak++;
-      } else {
-        break;
-      }
+      console.log('Sleep reminder scheduled for:', bedtimeDate);
+      return true;
+    } catch (error) {
+      console.error('Error scheduling sleep reminder:', error);
+      return false;
     }
-
-    return streak;
   };
 
-  const getCurrentSleepDuration = () => {
-    if (!currentSession) return 0;
-    const now = new Date();
-    const duration = (now - currentSession.startTime) / (1000 * 60 * 60); // hours
-    return Math.round(duration * 10) / 10;
+  // Schedule wake up alarm
+  const scheduleWakeUpAlarm = async () => {
+    try {
+      const hasPermission = await setupNotifications();
+      if (!hasPermission) return false;
+
+      const wakeHour = parseInt(wakeTime.split(':')[0]);
+      const wakeMinute = parseInt(wakeTime.split(':')[1]);
+      
+      const wakeDate = new Date();
+      wakeDate.setHours(wakeHour, wakeMinute, 0, 0);
+      
+      // If wake time has passed today, schedule for tomorrow
+      if (wakeDate <= new Date()) {
+        wakeDate.setDate(wakeDate.getDate() + 1);
+      }
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: '☀️ Good Morning!',
+          body: `Time to wake up! Have a great day ahead.`,
+          sound: 'default',
+        },
+        trigger: wakeDate,
+      });
+
+      console.log('Wake up alarm scheduled for:', wakeDate);
+      return true;
+    } catch (error) {
+      console.error('Error scheduling wake up alarm:', error);
+      return false;
+    }
+  };
+
+  // Clear all sleep data
+  const clearAllSleepData = async () => {
+    if (!dbManager) {
+      // Clear AsyncStorage
+      await Promise.all([
+        AsyncStorage.removeItem('sleepSessions'),
+        AsyncStorage.removeItem('currentSession'),
+        AsyncStorage.removeItem('sleepGoal'),
+        AsyncStorage.removeItem('bedtime'),
+        AsyncStorage.removeItem('wakeTime')
+      ]);
+      
+      setSleepSessions([]);
+      setCurrentSession(null);
+      setIsSleeping(false);
+      return;
+    }
+
+    try {
+      await dbManager.clearAllUserData();
+      
+      // Reset local state
+      setSleepSessions([]);
+      setCurrentSession(null);
+      setIsSleeping(false);
+      
+      // Clear AsyncStorage as well
+      await Promise.all([
+        AsyncStorage.removeItem('sleepSessions'),
+        AsyncStorage.removeItem('currentSession'),
+        AsyncStorage.removeItem('sleepGoal'),
+        AsyncStorage.removeItem('bedtime'),
+        AsyncStorage.removeItem('wakeTime')
+      ]);
+      
+      console.log('All sleep data cleared for user');
+    } catch (error) {
+      console.error('Error clearing sleep data:', error);
+    }
   };
 
   const value = {
+    // State
     sleepSessions,
     currentSession,
     isSleeping,
     sleepGoal,
     bedtime,
-    wakeTime,
+    wakeUpTime: wakeTime,
     notifications,
+    isLoading,
+    
+    // Actions
     startSleep,
     endSleep,
     updateSleepGoal,
     updateBedtime,
     updateWakeTime,
+    getCurrentSleepDuration,
+    getSleepStats,
     scheduleSleepReminder,
     scheduleWakeUpAlarm,
-    cancelAllNotifications,
-    getSleepStats,
-    getCurrentSleepDuration
+    clearAllSleepData,
+    loadSleepDataFromFirebase: () => loadSleepDataFromFirebase(dbManager),
+    saveSleepSession
   };
 
   return (
@@ -382,8 +469,3 @@ export const SleepProvider = ({ children }) => {
     </SleepContext.Provider>
   );
 };
-
-
-
-
-

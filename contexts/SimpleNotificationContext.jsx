@@ -297,18 +297,3 @@ export const SimpleNotificationProvider = ({ children }) => {
   );
 };
 
-    scheduleNotification,
-    scheduleBedtimeReminder,
-    scheduleWakeUpAlarm,
-    sendTestNotification,
-    cancelAllNotifications,
-    cancelNotification,
-    getScheduledNotifications,
-  };
-
-  return (
-    <SimpleNotificationContext.Provider value={value}>
-      {children}
-    </SimpleNotificationContext.Provider>
-  );
-};

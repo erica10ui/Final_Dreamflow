@@ -14,10 +14,16 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Audio, Video } from 'expo-av';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useActivityTracking } from '../../contexts/ActivityTrackingContext';
+import MoodSelector from '../../components/MoodSelector';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Relax() {
   const { colors, isDarkMode } = useTheme();
+  const { recordActivity, ACTIVITY_TYPES } = useActivityTracking();
   const [currentScreen, setCurrentScreen] = useState('main');
+  const [showMoodSelector, setShowMoodSelector] = useState(false);
+  const [currentActivityType, setCurrentActivityType] = useState('general');
   const [currentTrack, setCurrentTrack] = useState(null);
   const [currentBook, setCurrentBook] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -28,6 +34,55 @@ export default function Relax() {
   const [isLiked, setIsLiked] = useState(false);
   const [currentTrackIndex, setCurrentTrackIndex] = useState(0);
   const [shuffledPlaylist, setShuffledPlaylist] = useState([]);
+
+  // Check if mood was already recorded today
+  const hasRecordedMoodToday = async () => {
+    try {
+      const today = new Date().toDateString();
+      const lastMoodDate = await AsyncStorage.getItem('lastMoodDate');
+      return lastMoodDate === today;
+    } catch (error) {
+      console.error('Error checking mood date:', error);
+      return false;
+    }
+  };
+
+  // Function to record activity and show mood selector (only once per day)
+  const recordActivityWithMood = async (activityType, duration = 0, notes = '') => {
+    try {
+      // Record the activity
+      await recordActivity({
+        type: activityType,
+        category: 'relaxation',
+        duration: duration,
+        intensity: 5,
+        mood: 'neutral', // Will be updated after mood selection
+        notes: notes
+      });
+
+      // Only show mood selector if not recorded today
+      const moodRecordedToday = await hasRecordedMoodToday();
+      if (!moodRecordedToday) {
+        setCurrentActivityType(activityType);
+        setShowMoodSelector(true);
+      }
+    } catch (error) {
+      console.error('Error recording activity:', error);
+    }
+  };
+
+  // Handle mood selection
+  const handleMoodSelected = async (moodEntry) => {
+    console.log('Mood selected:', moodEntry);
+    try {
+      // Save the date when mood was recorded
+      const today = new Date().toDateString();
+      await AsyncStorage.setItem('lastMoodDate', today);
+    } catch (error) {
+      console.error('Error saving mood date:', error);
+    }
+    // Activity is already recorded, mood is handled by MoodSelector
+  };
   const [progress, setProgress] = useState(0.33); // 33% progress as shown in image
   
   // Mood tracker state
@@ -981,7 +1036,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
       {/* Relaxation Techniques Grid */}
       <View style={styles.relaxationTechniquesGrid}>
         {/* Music Therapy */}
-        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => setCurrentScreen('playlist')}>
+        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => {
+          recordActivityWithMood(ACTIVITY_TYPES.MUSIC, 0, 'Started music therapy session');
+          setCurrentScreen('playlist');
+        }}>
           <View style={styles.techniqueImageContainer}>
             <Image source={require('../../assets/ocean.png')} style={styles.techniqueImage} />
                 </View>
@@ -994,7 +1052,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
                   </TouchableOpacity>
                   
         {/* Meditation */}
-        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => setCurrentScreen('meditation')}>
+        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => {
+          recordActivityWithMood(ACTIVITY_TYPES.MEDITATION, 0, 'Started meditation session');
+          setCurrentScreen('meditation');
+        }}>
           <View style={styles.techniqueImageContainer}>
             <Image source={require('../../assets/meditation.png')} style={styles.techniqueImage} />
           </View>
@@ -1007,7 +1068,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
                     </TouchableOpacity>
 
         {/* Breathing */}
-        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => setCurrentScreen('breathing')}>
+        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => {
+          recordActivityWithMood(ACTIVITY_TYPES.BREATHING, 0, 'Started breathing exercise');
+          setCurrentScreen('breathing');
+        }}>
           <View style={styles.techniqueImageContainer}>
             <Image source={require('../../assets/breath.png')} style={styles.techniqueImage} />
           </View>
@@ -1020,7 +1084,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
                   </TouchableOpacity>
 
         {/* Yoga */}
-        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => setCurrentScreen('workout')}>
+        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]} onPress={() => {
+          recordActivityWithMood(ACTIVITY_TYPES.YOGA, 0, 'Started yoga session');
+          setCurrentScreen('workout');
+        }}>
           <View style={styles.techniqueImageContainer}>
             <Image source={require('../../assets/yoga.png')} style={styles.techniqueImage} />
                 </View>
@@ -1033,7 +1100,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
         </TouchableOpacity>
 
         {/* Games */}
-        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]} onPress={() => setCurrentScreen('games')}>
+        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]} onPress={() => {
+          recordActivityWithMood(ACTIVITY_TYPES.GAMES, 0, 'Started relaxation game');
+          setCurrentScreen('games');
+        }}>
           <View style={styles.techniqueImageContainer}>
             <Image source={require('../../assets/egames.png')} style={styles.techniqueImage} />
               </View>
@@ -1046,7 +1116,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
         </TouchableOpacity>
 
         {/* E-Books */}
-        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]} onPress={() => setCurrentScreen('ebooks')}>
+        <TouchableOpacity style={[styles.techniqueCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]} onPress={() => {
+          recordActivityWithMood(ACTIVITY_TYPES.EBOOKS, 0, 'Started e-book reading');
+          setCurrentScreen('ebooks');
+        }}>
           <View style={styles.techniqueImageContainer}>
             <Image source={require('../../assets/ebooks.png')} style={styles.techniqueImage} />
             </View>
@@ -1099,23 +1172,25 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
   );
 
   const renderPlaylistScreen = () => (
-    <ScrollView 
-      style={[styles.playlistContainer, { backgroundColor: colors.background }]} 
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.playlistScrollContent}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {renderStars()}
-      {/* Header with Back Button */}
+      {/* Header */}
       <View style={styles.videoHeader}>
         <TouchableOpacity 
           style={styles.headerButton}
           onPress={() => setCurrentScreen('main')}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primary} />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#9B70D8" />
         </TouchableOpacity>
-        <Text style={[styles.videoTitle, { color: colors.text }]}>Music Therapy</Text>
+        <Text style={styles.videoTitle}>Music Therapy</Text>
         <View style={styles.headerButton} />
       </View>
+
+      <ScrollView 
+        style={[styles.playlistContainer, { backgroundColor: colors.background }]} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.playlistScrollContent}
+      >
 
       {/* Playlist Header Card */}
       <View style={[styles.playlistHeaderCard, { backgroundColor: colors.surface, shadowColor: colors.shadow }]}>
@@ -1128,51 +1203,75 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
         </View>
       </View>
 
-      {/* Music Categories Section */}
-      <Text style={[styles.newReleasesTitle, { color: colors.text }]}>Therapeutic Sounds</Text>
+      {/* Enhanced Music Categories Section */}
+      <View style={styles.musicSectionHeader}>
+        <View style={styles.musicSectionTitleContainer}>
+          <MaterialCommunityIcons name="music-note" size={28} color={colors.primary} />
+          <Text style={[styles.musicSectionTitle, { color: colors.text }]}>Therapeutic Sounds</Text>
+        </View>
+        <Text style={[styles.musicSectionSubtitle, { color: colors.textSecondary }]}>
+          Curated playlists for relaxation & healing
+        </Text>
+      </View>
 
-      {/* Music Categories - Grid Layout (All Categories) */}
-      <View style={[styles.musicGridContainer, { backgroundColor: colors.primaryLight }]}>
-        {musicCategories.map((category) => (
+      {/* Modern Music Categories Grid */}
+      <View style={styles.modernMusicGrid}>
+        {musicCategories.map((category, index) => (
           <TouchableOpacity
             key={category.id}
-            style={[styles.musicGridCard, { backgroundColor: colors.surface, shadowColor: colors.shadow, borderColor: colors.border }]}
+            style={[
+              styles.modernMusicCard, 
+              { 
+                backgroundColor: colors.surface, 
+                shadowColor: colors.shadow,
+                borderColor: colors.border,
+                marginBottom: index % 2 === 0 ? 16 : 0
+              }
+            ]}
             onPress={() => {
               loadTrack(category);
               setCurrentScreen('nowplaying');
             }}
+            activeOpacity={0.8}
           >
-            <View style={styles.musicGridImageContainer}>
-            <Image source={category.image} style={styles.musicGridImage} resizeMode="cover" />
-              <View style={[styles.musicGridOverlay, { backgroundColor: `rgba(155, 112, 216, 0.4)` }]}>
-                <View style={styles.playIconContainer}>
-                  <MaterialCommunityIcons name="play" size={24} color="#FFFFFF" />
+            <View style={styles.modernMusicImageContainer}>
+              <Image source={category.image} style={styles.modernMusicImage} resizeMode="cover" />
+              <View style={styles.modernMusicGradient}>
+                <View style={styles.modernPlayButton}>
+                  <MaterialCommunityIcons name="play" size={20} color="#FFFFFF" />
                 </View>
               </View>
+              <View style={[styles.modernMusicBadge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.modernMusicBadgeText}>LIVE</Text>
+              </View>
             </View>
-            <View style={styles.musicGridContent}>
-            <Text style={[styles.musicGridTitle, { color: colors.text }]}>{category.title}</Text>
-              <Text style={[styles.musicGridDescription, { color: colors.textSecondary }]}>{category.description}</Text>
-              <View style={[styles.musicGridPlayButton, { backgroundColor: colors.primaryLight, borderColor: colors.primary }]}>
-                <MaterialCommunityIcons name="play" size={16} color={colors.primary} />
-                <Text style={[styles.musicGridPlayText, { color: colors.primary }]}>Play</Text>
+            <View style={styles.modernMusicContent}>
+              <Text style={[styles.modernMusicTitle, { color: colors.text }]}>{category.title}</Text>
+              <Text style={[styles.modernMusicDescription, { color: colors.textSecondary }]}>
+                {category.description}
+              </Text>
+              <View style={styles.modernMusicMeta}>
+                <View style={[styles.modernMusicDuration, { backgroundColor: colors.primaryLight }]}>
+                  <MaterialCommunityIcons name="clock-outline" size={12} color={colors.primary} />
+                  <Text style={[styles.modernMusicDurationText, { color: colors.primary }]}>45 min</Text>
+                </View>
+                <View style={[styles.modernMusicCategory, { backgroundColor: colors.success + '20' }]}>
+                  <Text style={[styles.modernMusicCategoryText, { color: colors.success }]}>Ambient</Text>
+                </View>
               </View>
             </View>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Bottom Spacing */}
-      <View style={styles.bottomSpacing} />
-    </ScrollView>
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </View>
   );
 
   const renderGamesScreen = () => (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {renderStars()}
       {/* Header */}
       <View style={styles.videoHeader}>
@@ -1180,11 +1279,17 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
           style={styles.headerButton}
           onPress={() => setCurrentScreen('main')}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primary} />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#9B70D8" />
         </TouchableOpacity>
-        <Text style={[styles.videoTitle, { color: colors.text }]}>Relaxing Games</Text>
+        <Text style={styles.videoTitle}>Relaxing Games</Text>
         <View style={styles.headerButton} />
       </View>
+
+      <ScrollView 
+        style={[styles.container, { backgroundColor: colors.background }]} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
 
       {/* Games Header Card */}
       <View style={[styles.gamesHeaderCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}>
@@ -1192,31 +1297,57 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
         <Text style={[styles.gamesHeaderCardSubtitle, { color: colors.textSecondary }]}>Engage your mind with relaxing puzzles and games</Text>
       </View>
 
-      {/* Games - Grid Layout */}
-      <View style={styles.gamesGridContainer}>
-        {gameOptions.map((game) => (
+      {/* Games - Modern Grid Layout */}
+      <View style={styles.modernMusicGrid}>
+        {gameOptions.map((game, index) => (
           <TouchableOpacity
             key={game.id}
-            style={[styles.gameGridCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
+            style={[
+              styles.modernMusicCard, 
+              { 
+                backgroundColor: colors.surface, 
+                shadowColor: colors.shadow,
+                borderColor: colors.border,
+                marginBottom: index % 2 === 0 ? 16 : 0
+              }
+            ]}
             onPress={game.onPress}
+            activeOpacity={0.8}
           >
-            <View style={[styles.gameGridIcon, { backgroundColor: game.color }]}>
-              <MaterialCommunityIcons 
-                name={game.icon} 
-                size={32} 
-                color="#fff" 
-              />
+            <View style={styles.modernMusicImageContainer}>
+              <View style={[styles.modernMusicImage, { backgroundColor: game.color }]}>
+                <MaterialCommunityIcons 
+                  name={game.icon} 
+                  size={48} 
+                  color="#fff" 
+                />
+              </View>
+              <View style={styles.modernMusicGradient}>
+                <View style={styles.modernPlayButton}>
+                  <MaterialCommunityIcons name="play" size={20} color="#FFFFFF" />
+                </View>
+              </View>
+              <View style={[styles.modernMusicBadge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.modernMusicBadgeText}>GAME</Text>
+              </View>
             </View>
-            <Text style={[styles.gameGridTitle, { color: colors.text }]}>{game.title}</Text>
-            <Text style={[styles.gameGridDescription, { color: colors.textSecondary }]}>
-              {game.id === 'wordsearch' && 'Find hidden words in a grid'}
-              {game.id === 'sudoku' && 'Number puzzle for mental focus'}
-              {game.id === 'scramble' && 'Unscramble words to relax'}
-              {game.id === 'findthings' && 'Find hidden objects'}
-            </Text>
-            <View style={styles.gameGridPlayButton}>
-              <MaterialCommunityIcons name="play" size={16} color="#8B5CF6" />
-              <Text style={styles.gameGridPlayText}>Play</Text>
+            <View style={styles.modernMusicContent}>
+              <Text style={[styles.modernMusicTitle, { color: colors.text }]}>{game.title}</Text>
+              <Text style={[styles.modernMusicDescription, { color: colors.textSecondary }]}>
+                {game.id === 'wordsearch' && 'Find hidden words in a grid'}
+                {game.id === 'sudoku' && 'Number puzzle for mental focus'}
+                {game.id === 'scramble' && 'Unscramble words to relax'}
+                {game.id === 'findthings' && 'Find hidden objects'}
+              </Text>
+              <View style={styles.modernMusicMeta}>
+                <View style={[styles.modernMusicDuration, { backgroundColor: colors.primaryLight }]}>
+                  <MaterialCommunityIcons name="clock-outline" size={12} color={colors.primary} />
+                  <Text style={[styles.modernMusicDurationText, { color: colors.primary }]}>5-15 min</Text>
+                </View>
+                <View style={[styles.modernMusicCategory, { backgroundColor: colors.success + '20' }]}>
+                  <Text style={[styles.modernMusicCategoryText, { color: colors.success }]}>Puzzle</Text>
+                </View>
+              </View>
             </View>
           </TouchableOpacity>
         ))}
@@ -1245,28 +1376,32 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
         </View>
       </View>
 
-      {/* Bottom Spacing */}
-      <View style={styles.bottomSpacing} />
-    </ScrollView>
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </View>
   );
 
   const renderWorkoutScreen = () => (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {renderStars()}
       {/* Header */}
       <View style={styles.videoHeader}>
         <TouchableOpacity 
           style={styles.headerButton}
           onPress={() => setCurrentScreen('main')}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primary} />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#9B70D8" />
         </TouchableOpacity>
-        <Text style={[styles.videoTitle, { color: colors.text }]}>Workout Activities</Text>
+        <Text style={styles.videoTitle}>Workout Activities</Text>
         <View style={styles.headerButton} />
       </View>
+
+      <ScrollView 
+        style={[styles.container, { backgroundColor: colors.background }]} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
 
       {/* Workout Activities - Vertical Layout */}
       <View style={styles.workoutVerticalContainer}>
@@ -1288,9 +1423,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
         ))}
       </View>
 
-      {/* Bottom Spacing */}
-      <View style={styles.bottomSpacing} />
-    </ScrollView>
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </View>
   );
 
   const renderNowPlayingScreen = () => {
@@ -1427,23 +1563,25 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
   };
 
   const renderEBooksScreen = () => (
-    <ScrollView 
-      style={[styles.container, { backgroundColor: colors.background }]} 
-      showsVerticalScrollIndicator={false}
-      contentContainerStyle={styles.scrollContent}
-    >
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {renderStars()}
-      {/* Header with Back Button */}
+      {/* Header */}
       <View style={styles.videoHeader}>
         <TouchableOpacity 
           style={styles.headerButton}
           onPress={() => setCurrentScreen('main')}
         >
-          <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primary} />
+          <MaterialCommunityIcons name="arrow-left" size={24} color="#9B70D8" />
         </TouchableOpacity>
-        <Text style={[styles.videoTitle, { color: colors.text }]}>E-Books</Text>
+        <Text style={styles.videoTitle}>E-Books</Text>
         <View style={styles.headerButton} />
       </View>
+
+      <ScrollView 
+        style={[styles.container, { backgroundColor: colors.background }]} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
 
       {/* Spacing */}
       <View style={{ height: 20 }} />
@@ -1464,27 +1602,58 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
       {/* New Releases Section */}
       <Text style={[styles.ebooksNewReleasesTitle, { color: colors.text }]}>New releases</Text>
 
-      {/* Books - Grid Layout */}
-      <View style={styles.ebooksGridContainer}>
-        {ebooks.map((book) => (
+      {/* Books - Modern Grid Layout */}
+      <View style={styles.modernMusicGrid}>
+        {ebooks.map((book, index) => (
           <TouchableOpacity
             key={book.id}
-            style={[styles.ebooksGridCard, { backgroundColor: colors.card, shadowColor: colors.shadow }]}
+            style={[
+              styles.modernMusicCard, 
+              { 
+                backgroundColor: colors.surface, 
+                shadowColor: colors.shadow,
+                borderColor: colors.border,
+                marginBottom: index % 2 === 0 ? 16 : 0
+              }
+            ]}
             onPress={() => {
               setCurrentBook(book);
               setCurrentScreen('ebookreader');
             }}
+            activeOpacity={0.8}
           >
-            <Image source={book.image} style={styles.ebooksGridImage} resizeMode="cover" />
-            <Text style={[styles.ebooksGridTitle, { color: colors.text }]}>{book.title}</Text>
-            <Text style={[styles.ebooksGridDescription, { color: colors.textSecondary }]}>{book.description}</Text>
+            <View style={styles.modernMusicImageContainer}>
+              <Image source={book.image} style={styles.modernMusicImage} resizeMode="cover" />
+              <View style={styles.modernMusicGradient}>
+                <View style={styles.modernPlayButton}>
+                  <MaterialCommunityIcons name="book-open" size={20} color="#FFFFFF" />
+                </View>
+              </View>
+              <View style={[styles.modernMusicBadge, { backgroundColor: colors.primary }]}>
+                <Text style={styles.modernMusicBadgeText}>BOOK</Text>
+              </View>
+            </View>
+            <View style={styles.modernMusicContent}>
+              <Text style={[styles.modernMusicTitle, { color: colors.text }]}>{book.title}</Text>
+              <Text style={[styles.modernMusicDescription, { color: colors.textSecondary }]}>{book.description}</Text>
+              <View style={styles.modernMusicMeta}>
+                <View style={[styles.modernMusicDuration, { backgroundColor: colors.primaryLight }]}>
+                  <MaterialCommunityIcons name="clock-outline" size={12} color={colors.primary} />
+                  <Text style={[styles.modernMusicDurationText, { color: colors.primary }]}>10-20 min</Text>
+                </View>
+                <View style={[styles.modernMusicCategory, { backgroundColor: colors.success + '20' }]}>
+                  <Text style={[styles.modernMusicCategoryText, { color: colors.success }]}>Story</Text>
+                </View>
+              </View>
+            </View>
           </TouchableOpacity>
         ))}
       </View>
 
-      {/* Bottom Spacing */}
-      <View style={styles.bottomSpacing} />
-    </ScrollView>
+        {/* Bottom Spacing */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+    </View>
   );
 
   const renderEBookReaderScreen = () => {
@@ -2453,22 +2622,25 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
     ];
 
     return (
-      <ScrollView 
-        style={styles.breathingExerciseContainer} 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.breathingScrollContent}
-      >
-        {/* Header with Back Button */}
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        {renderStars()}
+        {/* Header */}
         <View style={styles.videoHeader}>
           <TouchableOpacity 
             style={styles.headerButton}
             onPress={() => setCurrentScreen('main')}
           >
-            <MaterialCommunityIcons name="arrow-left" size={24} color={colors.primary} />
+            <MaterialCommunityIcons name="arrow-left" size={24} color="#9B70D8" />
           </TouchableOpacity>
-          <Text style={[styles.videoTitle, { color: colors.text }]}>Breathing Exercises</Text>
+          <Text style={styles.videoTitle}>Breathing Exercises</Text>
           <View style={styles.headerButton} />
-      </View>
+        </View>
+
+        <ScrollView 
+          style={styles.breathingExerciseContainer} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.breathingScrollContent}
+        >
 
         {/* Breathing Categories Grid */}
         <View style={styles.breathingCategoriesGrid}>
@@ -2521,9 +2693,10 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
           </View>
         </View>
 
-        {/* Bottom Spacing */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
+          {/* Bottom Spacing */}
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
+      </View>
     );
   };
 
@@ -3181,6 +3354,14 @@ This is the magic of the Dream Garden—a place where sleep is not forced but in
           <MaterialCommunityIcons name="pause" size={28} color="#FFFFFF" />
         </TouchableOpacity>
       )}
+
+      {/* Mood Selector Modal */}
+      <MoodSelector
+        visible={showMoodSelector}
+        onClose={() => setShowMoodSelector(false)}
+        activityType={currentActivityType}
+        onMoodSelected={handleMoodSelected}
+      />
     </View>
   );
 }
@@ -3385,6 +3566,7 @@ const styles = StyleSheet.create({
   },
   techniqueCard: {
     width: '48%',
+    height: 200, // Fixed height for consistent sizing
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
@@ -3395,6 +3577,7 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: 1,
     borderColor: '#F3E8FF',
+    justifyContent: 'space-between',
   },
   techniqueImageContainer: {
     alignItems: 'center',
@@ -3842,7 +4025,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   toolCard: {
-    width: '47%',
+    width: '48%',
     aspectRatio: 1,
     backgroundColor: '#F9FAFB',
     borderRadius: 16,
@@ -3932,13 +4115,15 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   musicCard: {
-    width: '47%',
+    width: '48%',
+    height: 200, // Fixed height for consistent sizing
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    justifyContent: 'space-between',
   },
   musicImage: {
     width: 80,
@@ -3962,6 +4147,139 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1F2937',
     textAlign: 'center',
+  },
+  
+  // Modern Music Styles
+  musicSectionHeader: {
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  musicSectionTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 12,
+  },
+  musicSectionTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  musicSectionSubtitle: {
+    fontSize: 16,
+    fontWeight: '400',
+    lineHeight: 22,
+  },
+  modernMusicGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modernMusicCard: {
+    width: '48%',
+    height: 200, // Fixed height for consistent sizing
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  modernMusicImageContainer: {
+    position: 'relative',
+    height: 120,
+    overflow: 'hidden',
+  },
+  modernMusicImage: {
+    width: '100%',
+    height: '100%',
+  },
+  modernMusicGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modernPlayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modernMusicBadge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  modernMusicBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  modernMusicContent: {
+    padding: 16,
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  modernMusicTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 4,
+    lineHeight: 20,
+  },
+  modernMusicDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  modernMusicMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  modernMusicDuration: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  modernMusicDurationText: {
+    fontSize: 11,
+    fontWeight: '500',
+  },
+  modernMusicCategory: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  modernMusicCategoryText: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   playlistHeader: {
     flexDirection: 'row',
@@ -4022,7 +4340,7 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   gameCard: {
-    width: '47%',
+    width: '48%',
     aspectRatio: 1,
     backgroundColor: '#F9FAFB',
     borderRadius: 16,
@@ -4301,13 +4619,15 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   bookCard: {
-    width: '47%',
+    width: '48%',
+    height: 200, // Fixed height for consistent sizing
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    justifyContent: 'space-between',
   },
   bookCover: {
     width: 100,
@@ -5095,7 +5415,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   relaxationGridCard: {
-    width: '47%',
+    width: '48%',
+    height: 200, // Fixed height for consistent sizing
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
@@ -5106,6 +5427,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     marginBottom: 16,
+    justifyContent: 'space-between',
   },
   relaxationGridIcon: {
     width: 50,
@@ -5180,7 +5502,8 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   ebooksGridCard: {
-    width: '47%',
+    width: '48%',
+    height: 200, // Fixed height for consistent sizing
     backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 12,
@@ -5193,6 +5516,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#F3E8FF',
+    justifyContent: 'space-between',
   },
   ebooksGridImage: {
     width: '100%',
